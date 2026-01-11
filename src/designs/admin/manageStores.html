@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Retail POS - Gestión de Tiendas</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Ionicons for icons -->
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"
+    ></script>
+    <!-- Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      .tab-active {
+        border-color: #4f46e5;
+        color: #4f46e5;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100">
+    <div class="flex h-screen">
+      <!-- Sidebar de Navegación -->
+      <aside class="w-64 bg-white flex flex-col shadow-lg">
+        <!-- Perfil de Administrador -->
+        <div class="p-6 border-b">
+          <div class="flex items-center space-x-4">
+            <img
+              class="h-10 w-10 rounded-full object-cover"
+              src="https://placehold.co/100x100/4A5568/FFFFFF?text=SA"
+              alt="Avatar de Super Admin"
+            />
+            <div>
+              <p class="font-semibold text-gray-800">Admin General</p>
+              <span
+                class="text-xs text-purple-500 font-medium bg-purple-100 px-2 py-0.5 rounded-full"
+                >Super Admin</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Menú Principal -->
+        <nav class="flex-1 px-4 py-6 space-y-2">
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="bar-chart-outline" class="text-xl"></ion-icon>
+            <span>Dashboard</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 bg-indigo-50 text-indigo-700 font-semibold rounded-lg"
+          >
+            <ion-icon name="storefront-outline" class="text-xl"></ion-icon>
+            <span>Tiendas</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="people-circle-outline" class="text-xl"></ion-icon>
+            <span>Usuarios</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="document-text-outline" class="text-xl"></ion-icon>
+            <span>Reportes</span>
+          </a>
+        </nav>
+
+        <!-- Menú de Salida -->
+        <div class="px-4 py-6 border-t">
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-lg"
+          >
+            <ion-icon name="log-out-outline" class="text-xl"></ion-icon>
+            <span>Cerrar Sesión</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- Contenido Principal -->
+      <main class="flex-1 flex flex-col p-6 overflow-y-auto">
+        <!-- Vista de Lista de Tiendas (Visible por defecto) -->
+        <div id="stores-list-view">
+          <div
+            class="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4"
+          >
+            <div>
+              <h1 class="text-3xl font-bold text-gray-800">
+                Gestión de Tiendas
+              </h1>
+              <p class="text-gray-500 mt-1">
+                Supervisa y configura cada una de tus sucursales.
+              </p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Tarjeta de Tienda 1 -->
+            <div class="bg-white p-6 rounded-xl shadow-lg flex flex-col">
+              <h2 class="text-xl font-bold text-gray-800">Tienda Centro</h2>
+              <p class="text-sm text-gray-500 mb-4">Av. Principal #123</p>
+              <div class="space-y-2 text-sm mb-4">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Ventas (mes):</span
+                  ><span class="font-semibold text-green-600">$450,123.80</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Usuarios Activos:</span
+                  ><span class="font-semibold">5</span>
+                </div>
+              </div>
+              <button
+                class="manage-store-btn mt-auto w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 transition"
+              >
+                Gestionar Tienda
+              </button>
+            </div>
+            <!-- Tarjeta de Tienda 2 -->
+            <div class="bg-white p-6 rounded-xl shadow-lg flex flex-col">
+              <h2 class="text-xl font-bold text-gray-800">
+                Tienda Plaza Mayor
+              </h2>
+              <p class="text-sm text-gray-500 mb-4">Blvd. Universitario #540</p>
+              <div class="space-y-2 text-sm mb-4">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Ventas (mes):</span
+                  ><span class="font-semibold text-green-600">$380,560.20</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Usuarios Activos:</span
+                  ><span class="font-semibold">4</span>
+                </div>
+              </div>
+              <button
+                class="manage-store-btn mt-auto w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 transition"
+              >
+                Gestionar Tienda
+              </button>
+            </div>
+            <!-- Tarjeta de Tienda 3 -->
+            <div class="bg-white p-6 rounded-xl shadow-lg flex flex-col">
+              <h2 class="text-xl font-bold text-gray-800">Tienda Sur</h2>
+              <p class="text-sm text-gray-500 mb-4">Carretera 57 #8900</p>
+              <div class="space-y-2 text-sm mb-4">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Ventas (mes):</span
+                  ><span class="font-semibold text-green-600">$290,800.00</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Usuarios Activos:</span
+                  ><span class="font-semibold">4</span>
+                </div>
+              </div>
+              <button
+                class="manage-store-btn mt-auto w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 transition"
+              >
+                Gestionar Tienda
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vista de Detalle de Tienda (Oculta por defecto) -->
+        <div id="store-detail-view" class="hidden">
+          <div class="flex items-center mb-6">
+            <button
+              id="back-to-list-btn"
+              class="text-gray-500 hover:text-gray-800 mr-4"
+            >
+              <ion-icon name="arrow-back-outline" class="text-2xl"></ion-icon>
+            </button>
+            <div>
+              <h1 class="text-3xl font-bold text-gray-800">
+                Detalles de Tienda Centro
+              </h1>
+            </div>
+          </div>
+
+          <!-- Pestañas -->
+          <div class="border-b border-gray-200">
+            <nav class="flex -mb-px space-x-8" id="store-tabs">
+              <button
+                data-tab="resumen"
+                class="tab-btn py-4 px-1 border-b-2 whitespace-nowrap tab-active"
+              >
+                Resumen
+              </button>
+              <button
+                data-tab="usuarios"
+                class="tab-btn py-4 px-1 border-b-2 text-gray-500 whitespace-nowrap"
+              >
+                Usuarios
+              </button>
+              <button
+                data-tab="productos"
+                class="tab-btn py-4 px-1 border-b-2 text-gray-500 whitespace-nowrap"
+              >
+                Productos Populares
+              </button>
+            </nav>
+          </div>
+
+          <!-- Contenido de Pestañas -->
+          <div id="store-tab-content" class="pt-6">
+            <!-- Pestaña Resumen -->
+            <div id="resumen" class="tab-pane space-y-6">
+              <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">
+                  Configurar Nombre
+                </h2>
+                <input
+                  type="text"
+                  value="Tienda Centro"
+                  class="w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  class="mt-3 w-full bg-indigo-100 text-indigo-700 font-semibold py-2 rounded-lg hover:bg-indigo-200 transition"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+              <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">
+                  Estadísticas (Último Mes)
+                </h2>
+                <div
+                  class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center"
+                >
+                  <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-500">Ventas Totales</p>
+                    <p class="text-xl font-bold">$450,123</p>
+                  </div>
+                  <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-500">Ticket Promedio</p>
+                    <p class="text-xl font-bold">$145.11</p>
+                  </div>
+                  <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-500">Nuevos Clientes</p>
+                    <p class="text-xl font-bold">89</p>
+                  </div>
+                  <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-500">Artículos Vendidos</p>
+                    <p class="text-xl font-bold">4,521</p>
+                  </div>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">
+                  Ventas: Entre Semana vs. Fin de Semana
+                </h3>
+                <div class="h-64">
+                  <canvas id="salesComparisonChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pestaña Usuarios -->
+            <div id="usuarios" class="tab-pane hidden">
+              <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                  <h2 class="text-xl font-bold text-gray-800">
+                    Usuarios de la Tienda
+                  </h2>
+                  <button
+                    class="add-user-btn text-indigo-600 hover:text-indigo-800"
+                  >
+                    <ion-icon
+                      name="add-circle-outline"
+                      class="text-2xl"
+                    ></ion-icon>
+                  </button>
+                </div>
+                <ul class="space-y-3">
+                  <li
+                    class="flex justify-between items-center bg-gray-50 p-3 rounded-lg"
+                  >
+                    <div>
+                      <p class="font-semibold">Ana García</p>
+                      <p class="text-gray-500 text-sm">Cajero</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <button
+                        class="view-user-stats-btn font-medium text-indigo-600 hover:underline text-sm"
+                      >
+                        Ver Estadísticas
+                      </button>
+                      <button class="text-red-500 hover:text-red-700">
+                        <ion-icon
+                          name="trash-outline"
+                          class="text-lg"
+                        ></ion-icon>
+                      </button>
+                    </div>
+                  </li>
+                  <li
+                    class="flex justify-between items-center bg-gray-50 p-3 rounded-lg"
+                  >
+                    <div>
+                      <p class="font-semibold">Luis Martínez</p>
+                      <p class="text-gray-500 text-sm">Gerente</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <button
+                        class="view-user-stats-btn font-medium text-indigo-600 hover:underline text-sm"
+                      >
+                        Ver Estadísticas
+                      </button>
+                      <button class="text-red-500 hover:text-red-700">
+                        <ion-icon
+                          name="trash-outline"
+                          class="text-lg"
+                        ></ion-icon>
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Pestaña Productos Populares -->
+            <div id="productos" class="tab-pane hidden">
+              <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">
+                  Top 5 Productos Más Vendidos
+                </h2>
+                <ul class="space-y-3">
+                  <li class="flex items-center space-x-4 p-2">
+                    <span class="text-lg font-bold text-gray-400">1</span>
+                    <img
+                      src="https://placehold.co/100x100/F3F4F6/4A5568?text=P"
+                      class="w-12 h-12 rounded-lg object-cover"
+                    />
+                    <div class="flex-grow">
+                      <p class="font-semibold">Pantalón de Mezclilla</p>
+                      <p class="text-sm text-gray-500">SKU: 12345</p>
+                    </div>
+                    <div class="text-right">
+                      <p class="font-bold">250</p>
+                      <p class="text-xs text-gray-500">unidades</p>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Modals -->
+    <div
+      id="add-user-modal"
+      class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 m-4">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">
+          Agregar Nuevo Usuario
+        </h2>
+        <form class="space-y-4">
+          <input
+            type="text"
+            placeholder="Nombre Completo"
+            class="w-full border border-gray-300 rounded-lg p-3"
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            class="w-full border border-gray-300 rounded-lg p-3"
+          />
+          <select class="w-full border border-gray-300 rounded-lg p-3">
+            <option disabled selected>Seleccionar Rol</option>
+            <option>Cajero</option>
+            <option>Gerente</option>
+          </select>
+          <div class="flex justify-end space-x-4 pt-4">
+            <button
+              type="button"
+              class="close-modal-btn bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg"
+              data-modal-id="add-user-modal"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg"
+            >
+              Guardar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div
+      id="user-stats-modal"
+      class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-8 m-4">
+        <div class="flex justify-between items-start mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-800">
+              Estadísticas de Ana García
+            </h2>
+            <p class="text-sm text-gray-500">Cajero - Tienda Centro</p>
+          </div>
+          <button
+            type="button"
+            class="close-modal-btn text-gray-400 hover:text-gray-800"
+            data-modal-id="user-stats-modal"
+          >
+            <ion-icon name="close-outline" class="text-3xl"></ion-icon>
+          </button>
+        </div>
+        <div class="space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-xs text-gray-500">Ventas (mes)</p>
+              <p class="text-lg font-bold">$58,430</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-xs text-gray-500">Órdenes</p>
+              <p class="text-lg font-bold">412</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-xs text-gray-500">Ticket Promedio</p>
+              <p class="text-lg font-bold">$141.82</p>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">
+              Rendimiento de Ventas (Últimos 7 días)
+            </h3>
+            <div class="h-48">
+              <canvas id="userSalesChart"></canvas>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">
+              Productos Más Vendidos por este Usuario
+            </h3>
+            <ul class="space-y-2 text-sm">
+              <li
+                class="flex justify-between items-center bg-gray-50 p-2 rounded-lg"
+              >
+                <span>Pantalón de Mezclilla</span>
+                <span class="font-bold">45 unidades</span>
+              </li>
+              <li
+                class="flex justify-between items-center bg-gray-50 p-2 rounded-lg"
+              >
+                <span>Camisa Casual</span>
+                <span class="font-bold">38 unidades</span>
+              </li>
+              <li
+                class="flex justify-between items-center bg-gray-50 p-2 rounded-lg"
+              >
+                <span>Cinturón de Piel</span>
+                <span class="font-bold">25 unidades</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // View Switching & Tabs
+        const storesListView = document.getElementById("stores-list-view");
+        const storeDetailView = document.getElementById("store-detail-view");
+        const storeTabs = document.getElementById("store-tabs");
+        const storeTabPanes = document.querySelectorAll(
+          "#store-tab-content .tab-pane"
+        );
+
+        document.querySelectorAll(".manage-store-btn").forEach((button) => {
+          button.addEventListener("click", () => {
+            storesListView.classList.add("hidden");
+            storeDetailView.classList.remove("hidden");
+          });
+        });
+        document
+          .getElementById("back-to-list-btn")
+          .addEventListener("click", () => {
+            storeDetailView.classList.add("hidden");
+            storesListView.classList.remove("hidden");
+          });
+
+        storeTabs.addEventListener("click", (e) => {
+          if (e.target.classList.contains("tab-btn")) {
+            storeTabs
+              .querySelectorAll(".tab-btn")
+              .forEach((btn) => btn.classList.remove("tab-active"));
+            e.target.classList.add("tab-active");
+            storeTabPanes.forEach((pane) => pane.classList.add("hidden"));
+            document
+              .getElementById(e.target.dataset.tab)
+              .classList.remove("hidden");
+          }
+        });
+
+        // Modals
+        const addUserModal = document.getElementById("add-user-modal");
+        const userStatsModal = document.getElementById("user-stats-modal");
+        document
+          .querySelector(".add-user-btn")
+          .addEventListener("click", () =>
+            addUserModal.classList.remove("hidden")
+          );
+
+        document.querySelectorAll(".close-modal-btn").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            document.getElementById(btn.dataset.modalId).classList.add("hidden")
+          );
+        });
+
+        // User Stats Modal Chart Logic
+        let userSalesChart = null;
+        document.querySelectorAll(".view-user-stats-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            userStatsModal.classList.remove("hidden");
+            if (userSalesChart) {
+              userSalesChart.destroy();
+            }
+            const userSalesCtx = document
+              .getElementById("userSalesChart")
+              .getContext("2d");
+            userSalesChart = new Chart(userSalesCtx, {
+              type: "line",
+              data: {
+                labels: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
+                datasets: [
+                  {
+                    label: "Ventas Diarias",
+                    data: [1200, 1900, 3000, 5000, 2300, 4100, 3800],
+                    borderColor: "rgb(79, 70, 229)",
+                    backgroundColor: "rgba(79, 70, 229, 0.1)",
+                    fill: true,
+                    tension: 0.4,
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } },
+              },
+            });
+          });
+        });
+
+        // Chart for sales comparison
+        const salesComparisonCtx = document
+          .getElementById("salesComparisonChart")
+          .getContext("2d");
+        new Chart(salesComparisonCtx, {
+          type: "bar",
+          data: {
+            labels: ["Último Mes"],
+            datasets: [
+              {
+                label: "Ventas entre Semana",
+                data: [315000],
+                backgroundColor: "rgb(79, 70, 229)",
+                borderRadius: 5,
+              },
+              {
+                label: "Ventas en Fin de Semana",
+                data: [135123],
+                backgroundColor: "rgb(59, 130, 246)",
+                borderRadius: 5,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: (value) =>
+                    "$" + new Intl.NumberFormat().format(value),
+                },
+              },
+            },
+            plugins: { legend: { position: "bottom" } },
+          },
+        });
+      });
+    </script>
+  </body>
+</html>

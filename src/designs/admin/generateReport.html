@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Retail POS - Vista Previa de Reporte</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Ionicons for icons -->
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"
+    ></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+        }
+        .no-print {
+          display: none;
+        }
+        .print-container {
+          box-shadow: none !important;
+          border: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-gray-200 p-8">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center mb-6 no-print">
+        <h1 class="text-2xl font-bold text-gray-800">
+          Vista Previa de Reporte
+        </h1>
+        <p class="text-gray-500">
+          Así se vería tu reporte exportado en formato PDF.
+        </p>
+        <button
+          onclick="window.print()"
+          class="mt-4 bg-indigo-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
+        >
+          Imprimir / Guardar como PDF
+        </button>
+      </div>
+
+      <!-- Simulación de Hoja PDF -->
+      <div class="print-container bg-white p-12 rounded-lg shadow-2xl border">
+        <!-- Encabezado del Reporte -->
+        <header class="flex justify-between items-center pb-6 border-b">
+          <div class="flex items-center space-x-4">
+            <div class="p-2 bg-indigo-600 rounded-lg">
+              <ion-icon
+                name="storefront-outline"
+                class="text-3xl text-white"
+              ></ion-icon>
+            </div>
+            <div>
+              <h2 class="text-2xl font-extrabold text-gray-900">Retail POS</h2>
+              <p class="text-sm text-gray-500">
+                Reporte de Rendimiento General
+              </p>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="font-semibold text-gray-800">Septiembre 2025</p>
+            <p class="text-xs text-gray-500">Generado: 07 de Octubre, 2025</p>
+          </div>
+        </header>
+
+        <!-- Resumen Ejecutivo -->
+        <section class="my-8">
+          <h3 class="text-lg font-bold text-gray-800 mb-4">
+            Resumen Ejecutivo del Mes
+          </h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600">Ventas Totales</p>
+              <p class="text-2xl font-bold text-green-600">$1,245,320</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600">Ganancia Neta</p>
+              <p class="text-2xl font-bold text-gray-800">$450,180</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600">Órdenes</p>
+              <p class="text-2xl font-bold text-gray-800">8,912</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600">Ticket Promedio</p>
+              <p class="text-2xl font-bold text-gray-800">$139.73</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Desglose por Tienda -->
+        <section class="my-8">
+          <h3 class="text-lg font-bold text-gray-800 mb-4">
+            Rendimiento por Tienda
+          </h3>
+          <table class="w-full text-sm text-left">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+              <tr>
+                <th class="px-6 py-3">Tienda</th>
+                <th class="px-6 py-3 text-right">Ventas</th>
+                <th class="px-6 py-3 text-right">Órdenes</th>
+                <th class="px-6 py-3 text-right">Ticket Promedio</th>
+              </tr>
+            </thead>
+            <tbody class="text-gray-800">
+              <tr class="border-b">
+                <td class="px-6 py-4 font-medium">Tienda Centro</td>
+                <td class="px-6 py-4 text-right font-semibold">$450,123.80</td>
+                <td class="px-6 py-4 text-right">3,102</td>
+                <td class="px-6 py-4 text-right">$145.11</td>
+              </tr>
+              <tr class="border-b bg-gray-50">
+                <td class="px-6 py-4 font-medium">Tienda Plaza Mayor</td>
+                <td class="px-6 py-4 text-right font-semibold">$380,560.20</td>
+                <td class="px-6 py-4 text-right">2,850</td>
+                <td class="px-6 py-4 text-right">$133.53</td>
+              </tr>
+              <tr class="border-b">
+                <td class="px-6 py-4 font-medium">Tienda Sur</td>
+                <td class="px-6 py-4 text-right font-semibold">$290,800.00</td>
+                <td class="px-6 py-4 text-right">2,155</td>
+                <td class="px-6 py-4 text-right">$134.94</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Ranking de Empleados -->
+        <section class="my-8">
+          <h3 class="text-lg font-bold text-gray-800 mb-4">
+            Ranking de Productividad de Empleados
+          </h3>
+          <table class="w-full text-sm text-left">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+              <tr>
+                <th class="px-6 py-3">Empleado</th>
+                <th class="px-6 py-3">Tienda</th>
+                <th class="px-6 py-3 text-right">Ventas del Mes</th>
+              </tr>
+            </thead>
+            <tbody class="text-gray-800">
+              <tr class="border-b">
+                <td class="px-6 py-4 font-medium">Carlos Mendoza</td>
+                <td class="px-6 py-4">Tienda Centro</td>
+                <td class="px-6 py-4 text-right font-semibold">$85,320</td>
+              </tr>
+              <tr class="border-b bg-gray-50">
+                <td class="px-6 py-4 font-medium">Sofía Hernández</td>
+                <td class="px-6 py-4">Plaza Mayor</td>
+                <td class="px-6 py-4 text-right font-semibold">$82,150</td>
+              </tr>
+              <tr class="border-b">
+                <td class="px-6 py-4 font-medium">Ana García</td>
+                <td class="px-6 py-4">Tienda Centro</td>
+                <td class="px-6 py-4 text-right font-semibold">$58,430</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Pie de Página -->
+        <footer class="pt-8 mt-8 border-t text-center text-xs text-gray-500">
+          <p>Página 1 de 1</p>
+          <p class="mt-1">
+            Este documento es confidencial y para uso interno exclusivamente.
+          </p>
+          <p>&copy; 2025 Retail POS. Todos los derechos reservados.</p>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

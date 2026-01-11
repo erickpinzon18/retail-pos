@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Retail POS - Configuración</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Ionicons for icons -->
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"
+    ></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100">
+    <div class="flex h-screen">
+      <!-- Sidebar de Navegación -->
+      <aside class="w-64 bg-white flex flex-col shadow-lg">
+        <!-- Perfil de Usuario -->
+        <div class="p-6 border-b">
+          <div class="flex items-center space-x-4">
+            <img
+              class="h-10 w-10 rounded-full object-cover"
+              src="https://placehold.co/100x100/E2E8F0/4A5568?text=AV"
+              alt="Avatar de Usuario"
+            />
+            <div>
+              <p class="font-semibold text-gray-800">Ana García</p>
+              <span
+                class="text-xs text-green-500 font-medium bg-green-100 px-2 py-0.5 rounded-full"
+                >Cajero</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Menú Principal -->
+        <nav class="flex-1 px-4 py-6 space-y-2">
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="grid-outline" class="text-xl"></ion-icon>
+            <span>Punto de Venta</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="receipt-outline" class="text-xl"></ion-icon>
+            <span>Ventas</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="people-outline" class="text-xl"></ion-icon>
+            <span>Clientes</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="cube-outline" class="text-xl"></ion-icon>
+            <span>Productos</span>
+          </a>
+        </nav>
+
+        <!-- Menú de Configuración y Salida -->
+        <div class="px-4 py-6 border-t space-y-2">
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 bg-indigo-50 text-indigo-700 font-semibold rounded-lg"
+          >
+            <ion-icon name="settings-outline" class="text-xl"></ion-icon>
+            <span>Configuración</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-lg"
+          >
+            <ion-icon name="log-out-outline" class="text-xl"></ion-icon>
+            <span>Cerrar Sesión</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- Contenido Principal -->
+      <main class="flex-1 flex flex-col p-6 overflow-y-auto">
+        <!-- Cabecera -->
+        <div class="mb-6">
+          <h1 class="text-3xl font-bold text-gray-800">Configuración</h1>
+          <p class="text-gray-500 mt-1">
+            Personaliza tu entorno de trabajo y dispositivos.
+          </p>
+        </div>
+
+        <!-- Grid de Configuración -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <!-- Columna de Opciones -->
+          <div class="lg:col-span-2 space-y-8">
+            <!-- Card de Información de la Tienda -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+              <h2 class="text-xl font-bold text-gray-800 mb-4">
+                Información de la Tienda
+              </h2>
+              <div class="space-y-4">
+                <div>
+                  <label
+                    for="store-address"
+                    class="block text-sm font-medium text-gray-700"
+                    >Dirección (Calle y Número)</label
+                  >
+                  <input
+                    type="text"
+                    id="store-address"
+                    value="Av. Principal #123"
+                    class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="store-phone"
+                    class="block text-sm font-medium text-gray-700"
+                    >Teléfono</label
+                  >
+                  <input
+                    type="text"
+                    id="store-phone"
+                    value="123-456-7890"
+                    class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Card de Dispositivos -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+              <h2 class="text-xl font-bold text-gray-800 mb-4">
+                Dispositivos y Hardware
+              </h2>
+              <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                  <span class="font-medium text-gray-700"
+                    >Impresora de Tickets</span
+                  >
+                  <select
+                    class="w-1/2 border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option>Epson TM-T20II (Predeterminada)</option>
+                    <option>Star TSP100</option>
+                    <option>No imprimir</option>
+                  </select>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="font-medium text-gray-700"
+                    >Escáner de Código de Barras</span
+                  >
+                  <span
+                    class="text-sm font-semibold text-green-700 bg-green-100 px-3 py-1 rounded-full"
+                    >Conectado</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <!-- Card de Seguridad -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+              <h2 class="text-xl font-bold text-gray-800 mb-4">Seguridad</h2>
+              <div class="flex justify-between items-center">
+                <span class="font-medium text-gray-700">PIN de Acceso</span>
+                <button
+                  class="bg-indigo-600 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-indigo-700"
+                >
+                  Cambiar PIN
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna de Vista Previa del Ticket -->
+          <div class="lg:col-span-1">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+              <h2 class="text-xl font-bold text-gray-800 mb-4">
+                Personalizar Ticket
+              </h2>
+              <div class="mb-4">
+                <label
+                  for="ticket-footer"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                  >Mensaje de Agradecimiento</label
+                >
+                <input
+                  type="text"
+                  id="ticket-footer"
+                  value="¡Gracias por su compra!"
+                  class="w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <h3 class="font-semibold text-center mb-2 mt-6">Vista Previa</h3>
+              <div
+                class="bg-gray-50 p-4 border-dashed border-2 border-gray-300 font-mono text-xs text-gray-800"
+              >
+                <p class="text-center font-bold">** Mi Tienda **</p>
+                <p id="ticket-preview-address" class="text-center">
+                  Av. Principal #123
+                </p>
+                <p id="ticket-preview-phone" class="text-center">
+                  Tel: 123-456-7890
+                </p>
+                <hr class="border-dashed border-gray-400 my-2" />
+                <p>Cajero: Ana García</p>
+                <p>Fecha: 07/10/2025 16:25</p>
+                <hr class="border-dashed border-gray-400 my-2" />
+                <div class="flex justify-between">
+                  <span>1x Camisa Casual</span>
+                  <span>$299.99</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>2x Pantalón</span>
+                  <span>$1099.00</span>
+                </div>
+                <hr class="border-dashed border-gray-400 my-2" />
+                <div class="flex justify-between font-bold">
+                  <span>TOTAL:</span>
+                  <span>$1,398.99</span>
+                </div>
+                <hr class="border-dashed border-gray-400 my-2" />
+                <p id="ticket-preview-footer" class="text-center mt-2">
+                  ¡Gracias por su compra!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const footerInput = document.getElementById("ticket-footer");
+        const footerPreview = document.getElementById("ticket-preview-footer");
+        const addressInput = document.getElementById("store-address");
+        const phoneInput = document.getElementById("store-phone");
+        const addressPreview = document.getElementById(
+          "ticket-preview-address"
+        );
+        const phonePreview = document.getElementById("ticket-preview-phone");
+
+        footerInput.addEventListener("input", () => {
+          footerPreview.textContent = footerInput.value || " "; // Add space to prevent collapsing
+        });
+
+        addressInput.addEventListener("input", () => {
+          addressPreview.textContent = addressInput.value || " ";
+        });
+
+        phoneInput.addEventListener("input", () => {
+          phonePreview.textContent = phoneInput.value
+            ? `Tel: ${phoneInput.value}`
+            : " ";
+        });
+      });
+    </script>
+  </body>
+</html>

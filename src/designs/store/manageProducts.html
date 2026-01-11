@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Retail POS - Gestión de Productos</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Ionicons for icons -->
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"
+    ></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100">
+    <div class="flex h-screen">
+      <!-- Sidebar de Navegación -->
+      <aside class="w-64 bg-white flex flex-col shadow-lg">
+        <!-- Perfil de Usuario -->
+        <div class="p-6 border-b">
+          <div class="flex items-center space-x-4">
+            <img
+              class="h-10 w-10 rounded-full object-cover"
+              src="https://placehold.co/100x100/E2E8F0/4A5568?text=AV"
+              alt="Avatar de Usuario"
+            />
+            <div>
+              <p class="font-semibold text-gray-800">Ana García</p>
+              <span
+                class="text-xs text-green-500 font-medium bg-green-100 px-2 py-0.5 rounded-full"
+                >Cajero</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Menú Principal -->
+        <nav class="flex-1 px-4 py-6 space-y-4">
+          <div>
+            <p
+              class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider"
+            >
+              General
+            </p>
+            <div class="mt-2 space-y-1">
+              <a
+                href="#"
+                class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+              >
+                <ion-icon name="grid-outline" class="text-xl"></ion-icon>
+                <span>Punto de Venta</span>
+              </a>
+              <a
+                href="#"
+                class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+              >
+                <ion-icon name="receipt-outline" class="text-xl"></ion-icon>
+                <span>Ventas</span>
+              </a>
+            </div>
+          </div>
+          <div>
+            <p
+              class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider"
+            >
+              Gestión
+            </p>
+            <div class="mt-2 space-y-1">
+              <a
+                href="#"
+                class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+              >
+                <ion-icon name="people-outline" class="text-xl"></ion-icon>
+                <span>Clientes</span>
+              </a>
+              <a
+                href="#"
+                class="flex items-center space-x-3 px-4 py-2.5 bg-indigo-50 text-indigo-700 font-semibold rounded-lg"
+              >
+                <ion-icon name="cube-outline" class="text-xl"></ion-icon>
+                <span>Productos</span>
+              </a>
+            </div>
+          </div>
+        </nav>
+
+        <!-- Menú de Salida -->
+        <div class="px-4 py-6 border-t">
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-lg"
+          >
+            <ion-icon name="log-out-outline" class="text-xl"></ion-icon>
+            <span>Cerrar Sesión</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- Contenido Principal -->
+      <main class="flex-1 flex flex-col p-6 overflow-y-auto">
+        <!-- Cabecera -->
+        <div
+          class="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4"
+        >
+          <div>
+            <h1 class="text-3xl font-bold text-gray-800">
+              Gestión de Productos
+            </h1>
+            <p class="text-gray-500 mt-1">
+              Administra tu inventario y categorías.
+            </p>
+          </div>
+          <button
+            id="add-product-btn"
+            class="flex items-center justify-center space-x-2 bg-indigo-600 text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition shadow"
+          >
+            <ion-icon name="add-outline" class="text-xl"></ion-icon>
+            <span>Crear Producto</span>
+          </button>
+        </div>
+
+        <!-- Filtros y Búsqueda -->
+        <div
+          class="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4"
+        >
+          <div
+            class="flex space-x-2 p-1 bg-gray-200 rounded-lg overflow-x-auto"
+          >
+            <button
+              class="px-4 py-1.5 text-sm font-semibold rounded-md bg-white text-indigo-700 shadow-sm whitespace-nowrap"
+            >
+              Todos
+            </button>
+            <button
+              class="px-4 py-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap"
+            >
+              Pantalones
+            </button>
+            <button
+              class="px-4 py-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap"
+            >
+              Camisas
+            </button>
+            <button
+              class="px-4 py-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap"
+            >
+              Chamarras
+            </button>
+          </div>
+          <input
+            type="text"
+            placeholder="Buscar producto por nombre o SKU..."
+            class="w-full md:w-72 border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+
+        <!-- Grid de Productos -->
+        <div
+          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"
+        >
+          <!-- Product Card 1 -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col overflow-hidden"
+          >
+            <img
+              src="https://placehold.co/300x200/F3F4F6/4A5568?text=Producto"
+              class="w-full h-40 object-cover"
+            />
+            <div class="p-4 flex flex-col flex-1">
+              <h3 class="font-bold text-gray-800">Pantalón de Mezclilla</h3>
+              <p class="text-sm text-gray-500">SKU: 123456789</p>
+              <div class="mt-2 flex justify-between items-center">
+                <span class="text-lg font-extrabold text-indigo-600"
+                  >$899.90</span
+                >
+                <span
+                  class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full"
+                  >En Stock: 50</span
+                >
+              </div>
+              <div class="mt-4 pt-4 border-t border-gray-200 flex space-x-2">
+                <button
+                  class="edit-product-btn w-full bg-gray-100 text-gray-700 text-sm font-semibold py-2 rounded-lg hover:bg-gray-200"
+                >
+                  Editar
+                </button>
+                <button
+                  class="delete-product-btn w-full bg-red-50 text-red-600 text-sm font-semibold py-2 rounded-lg hover:bg-red-100"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card 2 -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col overflow-hidden"
+          >
+            <img
+              src="https://placehold.co/300x200/E0E7FF/4338CA?text=Producto"
+              class="w-full h-40 object-cover"
+            />
+            <div class="p-4 flex flex-col flex-1">
+              <h3 class="font-bold text-gray-800">Camisa Casual de Lino</h3>
+              <p class="text-sm text-gray-500">SKU: 987654321</p>
+              <div class="mt-2 flex justify-between items-center">
+                <span class="text-lg font-extrabold text-indigo-600"
+                  >$649.00</span
+                >
+                <span
+                  class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full"
+                  >En Stock: 120</span
+                >
+              </div>
+              <div class="mt-4 pt-4 border-t border-gray-200 flex space-x-2">
+                <button
+                  class="edit-product-btn w-full bg-gray-100 text-gray-700 text-sm font-semibold py-2 rounded-lg hover:bg-gray-200"
+                >
+                  Editar
+                </button>
+                <button
+                  class="delete-product-btn w-full bg-red-50 text-red-600 text-sm font-semibold py-2 rounded-lg hover:bg-red-100"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card 3 -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col overflow-hidden"
+          >
+            <img
+              src="https://placehold.co/300x200/FEF2F2/B91C1C?text=Producto"
+              class="w-full h-40 object-cover"
+            />
+            <div class="p-4 flex flex-col flex-1">
+              <h3 class="font-bold text-gray-800">Chamarra de Piel</h3>
+              <p class="text-sm text-gray-500">SKU: 456789123</p>
+              <div class="mt-2 flex justify-between items-center">
+                <span class="text-lg font-extrabold text-indigo-600"
+                  >$2,499.50</span
+                >
+                <span
+                  class="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full"
+                  >Bajo Stock: 5</span
+                >
+              </div>
+              <div class="mt-4 pt-4 border-t border-gray-200 flex space-x-2">
+                <button
+                  class="edit-product-btn w-full bg-gray-100 text-gray-700 text-sm font-semibold py-2 rounded-lg hover:bg-gray-200"
+                >
+                  Editar
+                </button>
+                <button
+                  class="delete-product-btn w-full bg-red-50 text-red-600 text-sm font-semibold py-2 rounded-lg hover:bg-red-100"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card 4 -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col overflow-hidden"
+          >
+            <img
+              src="https://placehold.co/300x200/F0FDFA/0D9488?text=Producto"
+              class="w-full h-40 object-cover"
+            />
+            <div class="p-4 flex flex-col flex-1">
+              <h3 class="font-bold text-gray-800">Playera Básica</h3>
+              <p class="text-sm text-gray-500">SKU: 789123456</p>
+              <div class="mt-2 flex justify-between items-center">
+                <span class="text-lg font-extrabold text-indigo-600"
+                  >$299.00</span
+                >
+                <span
+                  class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full"
+                  >En Stock: 250</span
+                >
+              </div>
+              <div class="mt-4 pt-4 border-t border-gray-200 flex space-x-2">
+                <button
+                  class="edit-product-btn w-full bg-gray-100 text-gray-700 text-sm font-semibold py-2 rounded-lg hover:bg-gray-200"
+                >
+                  Editar
+                </button>
+                <button
+                  class="delete-product-btn w-full bg-red-50 text-red-600 text-sm font-semibold py-2 rounded-lg hover:bg-red-100"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card 5 -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col overflow-hidden"
+          >
+            <img
+              src="https://placehold.co/300x200/EFF6FF/3B82F6?text=Producto"
+              class="w-full h-40 object-cover"
+            />
+            <div class="p-4 flex flex-col flex-1">
+              <h3 class="font-bold text-gray-800">Jeans Skinny Fit</h3>
+              <p class="text-sm text-gray-500">SKU: 321654987</p>
+              <div class="mt-2 flex justify-between items-center">
+                <span class="text-lg font-extrabold text-indigo-600"
+                  >$999.00</span
+                >
+                <span
+                  class="text-xs font-semibold bg-red-100 text-red-800 px-2 py-1 rounded-full"
+                  >Agotado</span
+                >
+              </div>
+              <div class="mt-4 pt-4 border-t border-gray-200 flex space-x-2">
+                <button
+                  class="edit-product-btn w-full bg-gray-100 text-gray-700 text-sm font-semibold py-2 rounded-lg hover:bg-gray-200"
+                >
+                  Editar
+                </button>
+                <button
+                  class="delete-product-btn w-full bg-red-50 text-red-600 text-sm font-semibold py-2 rounded-lg hover:bg-red-100"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card 6 -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col overflow-hidden"
+          >
+            <img
+              src="https://placehold.co/300x200/F5F5F5/44403C?text=Producto"
+              class="w-full h-40 object-cover"
+            />
+            <div class="p-4 flex flex-col flex-1">
+              <h3 class="font-bold text-gray-800">Sudadera con Capucha</h3>
+              <p class="text-sm text-gray-500">SKU: 654987321</p>
+              <div class="mt-2 flex justify-between items-center">
+                <span class="text-lg font-extrabold text-indigo-600"
+                  >$1,200.00</span
+                >
+                <span
+                  class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full"
+                  >En Stock: 80</span
+                >
+              </div>
+              <div class="mt-4 pt-4 border-t border-gray-200 flex space-x-2">
+                <button
+                  class="edit-product-btn w-full bg-gray-100 text-gray-700 text-sm font-semibold py-2 rounded-lg hover:bg-gray-200"
+                >
+                  Editar
+                </button>
+                <button
+                  class="delete-product-btn w-full bg-red-50 text-red-600 text-sm font-semibold py-2 rounded-lg hover:bg-red-100"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card 7 -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col overflow-hidden"
+          >
+            <img
+              src="https://placehold.co/300x200/ECFDF5/059669?text=Producto"
+              class="w-full h-40 object-cover"
+            />
+            <div class="p-4 flex flex-col flex-1">
+              <h3 class="font-bold text-gray-800">Camisa Polo</h3>
+              <p class="text-sm text-gray-500">SKU: 112233445</p>
+              <div class="mt-2 flex justify-between items-center">
+                <span class="text-lg font-extrabold text-indigo-600"
+                  >$750.00</span
+                >
+                <span
+                  class="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full"
+                  >En Stock: 150</span
+                >
+              </div>
+              <div class="mt-4 pt-4 border-t border-gray-200 flex space-x-2">
+                <button
+                  class="edit-product-btn w-full bg-gray-100 text-gray-700 text-sm font-semibold py-2 rounded-lg hover:bg-gray-200"
+                >
+                  Editar
+                </button>
+                <button
+                  class="delete-product-btn w-full bg-red-50 text-red-600 text-sm font-semibold py-2 rounded-lg hover:bg-red-100"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Modal para Crear/Editar Producto -->
+    <div
+      id="product-modal"
+      class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden transition-opacity duration-300"
+    >
+      <div
+        class="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-8 m-4 transform transition-all duration-300 scale-95 opacity-0 max-h-[90vh] overflow-y-auto"
+      >
+        <div class="flex justify-between items-center border-b pb-4 mb-6">
+          <h2 id="product-modal-title" class="text-2xl font-bold text-gray-800">
+            Crear Nuevo Producto
+          </h2>
+          <button
+            class="close-modal-btn text-gray-400 hover:text-gray-800 text-3xl"
+            data-modal-id="product-modal"
+          >
+            &times;
+          </button>
+        </div>
+        <form>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Nombre del Producto</label
+              >
+              <input
+                type="text"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Categoría</label
+              >
+              <select
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              >
+                <option>Pantalones</option>
+                <option>Camisas</option>
+                <option>Chamarras</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Precio de Venta ($)</label
+              >
+              <input
+                type="number"
+                placeholder="0.00"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Costo ($)</label
+              >
+              <input
+                type="number"
+                placeholder="0.00"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >SKU (Código de Barras)</label
+              >
+              <input
+                type="text"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Cantidad en Stock</label
+              >
+              <input
+                type="number"
+                placeholder="0"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700"
+                >Descripción</label
+              >
+              <textarea
+                rows="3"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              ></textarea>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700"
+                >Imagen del Producto</label
+              >
+              <div
+                class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md"
+              >
+                <div class="space-y-1 text-center">
+                  <ion-icon
+                    name="image-outline"
+                    class="mx-auto h-12 w-12 text-gray-400"
+                  ></ion-icon>
+                  <div class="flex text-sm text-gray-600">
+                    <label
+                      for="file-upload"
+                      class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none"
+                    >
+                      <span>Sube un archivo</span>
+                      <input
+                        id="file-upload"
+                        name="file-upload"
+                        type="file"
+                        class="sr-only"
+                      />
+                    </label>
+                    <p class="pl-1">o arrástralo aquí</p>
+                  </div>
+                  <p class="text-xs text-gray-500">PNG, JPG, GIF hasta 10MB</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-8 flex justify-end">
+            <button
+              type="submit"
+              class="bg-indigo-600 text-white font-semibold py-2.5 px-6 rounded-lg hover:bg-indigo-700 transition"
+            >
+              Guardar Producto
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal de Confirmación para Eliminar -->
+    <div
+      id="delete-confirm-modal"
+      class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden transition-opacity duration-300"
+    >
+      <div
+        class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 m-4 transform transition-all duration-300 scale-95 opacity-0"
+      >
+        <div class="text-center">
+          <div
+            class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100"
+          >
+            <ion-icon
+              name="warning-outline"
+              class="h-6 w-6 text-red-600"
+            ></ion-icon>
+          </div>
+          <h3 class="mt-5 text-lg font-medium text-gray-900">
+            ¿Eliminar Producto?
+          </h3>
+          <p class="mt-2 text-sm text-gray-500">
+            Esta acción es irreversible. Se eliminará permanentemente el
+            producto del inventario. ¿Estás seguro de que quieres continuar?
+          </p>
+        </div>
+        <div class="mt-8 grid grid-cols-2 gap-4">
+          <button
+            class="close-modal-btn w-full bg-gray-100 text-gray-700 font-semibold py-2.5 rounded-lg hover:bg-gray-200"
+            data-modal-id="delete-confirm-modal"
+          >
+            Cancelar
+          </button>
+          <button
+            class="w-full bg-red-600 text-white font-semibold py-2.5 rounded-lg hover:bg-red-700"
+          >
+            Sí, Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // --- Generic Modal Logic ---
+        const modals = {};
+        const setupModal = (modalId) => {
+          const modal = document.getElementById(modalId);
+          if (!modal) return;
+          const modalContent = modal.querySelector('div[class*="transform"]');
+          modals[modalId] = { modal, modalContent };
+
+          modal.addEventListener("click", (e) => {
+            if (e.target === modal) closeModal(modalId);
+          });
+        };
+
+        ["product-modal", "delete-confirm-modal"].forEach(setupModal);
+
+        const openModal = (modalId) => {
+          const modalData = modals[modalId];
+          if (!modalData) return;
+          modalData.modal.classList.remove("hidden");
+          setTimeout(() => {
+            modalData.modal.classList.remove("opacity-0");
+            modalData.modalContent.classList.remove("scale-95", "opacity-0");
+          }, 10);
+        };
+
+        const closeModal = (modalId) => {
+          const modalData = modals[modalId];
+          if (!modalData) return;
+          modalData.modalContent.classList.add("scale-95", "opacity-0");
+          modalData.modal.classList.add("opacity-0");
+          setTimeout(() => modalData.modal.classList.add("hidden"), 300);
+        };
+
+        document.querySelectorAll(".close-modal-btn").forEach((btn) => {
+          btn.addEventListener("click", () => closeModal(btn.dataset.modalId));
+        });
+
+        // --- Product Modal ---
+        const productModalTitle = document.getElementById(
+          "product-modal-title"
+        );
+
+        const openProductModal = (isEdit = false) => {
+          productModalTitle.textContent = isEdit
+            ? "Editar Producto"
+            : "Crear Nuevo Producto";
+          openModal("product-modal");
+        };
+
+        document
+          .getElementById("add-product-btn")
+          .addEventListener("click", () => openProductModal(false));
+        document.querySelectorAll(".edit-product-btn").forEach((btn) => {
+          btn.addEventListener("click", () => openProductModal(true));
+        });
+
+        // --- Delete Confirmation Modal ---
+        document.querySelectorAll(".delete-product-btn").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            openModal("delete-confirm-modal")
+          );
+        });
+      });
+    </script>
+  </body>
+</html>

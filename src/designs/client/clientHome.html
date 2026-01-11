@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Retail POS - Mi Perfil de Cliente</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Ionicons for icons -->
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"
+    ></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50">
+    <div class="max-w-md mx-auto min-h-screen bg-white shadow-lg">
+      <main class="p-6 pb-20">
+        <!-- Sección de Cabecera del Cliente -->
+        <header class="text-center pt-8 mb-6">
+          <img
+            class="h-24 w-24 rounded-full object-cover mx-auto ring-4 ring-white shadow-md"
+            src="https://placehold.co/100x100/E2E8F0/4A5568?text=JP"
+            alt="Avatar de Juan Pérez"
+          />
+          <h1 class="text-3xl font-extrabold text-gray-900 mt-4">Juan Pérez</h1>
+          <span
+            class="mt-2 inline-block bg-yellow-100 text-yellow-800 text-sm font-bold px-4 py-1.5 rounded-full"
+            >CLIENTE VIP</span
+          >
+        </header>
+
+        <!-- Sección del Código QR -->
+        <section class="mb-8">
+          <div class="bg-gray-100 p-4 rounded-xl flex flex-col items-center">
+            <p class="text-sm font-medium text-gray-600 mb-2">
+              Usa este QR en cualquier tienda para identificarte
+            </p>
+            <img
+              src="https://placehold.co/200x200/FFFFFF/000000?text=QR+ID"
+              alt="Código QR del Cliente"
+              class="w-48 h-48 rounded-lg shadow-sm"
+            />
+          </div>
+        </section>
+
+        <!-- Sección de Descuentos Disponibles -->
+        <section class="mb-8">
+          <h2 class="text-xl font-bold text-gray-800 mb-3 flex items-center">
+            <ion-icon
+              name="sparkles-outline"
+              class="text-indigo-500 mr-2"
+            ></ion-icon>
+            Mis Descuentos
+          </h2>
+          <div class="space-y-3">
+            <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-lg">
+              <p class="font-semibold text-indigo-800">
+                15% de Descuento en tu próxima compra
+              </p>
+              <p class="text-xs text-indigo-600 mt-1">
+                Válido hasta: 31 Dic, 2025
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Sección de Compras Recientes -->
+        <section class="mb-8">
+          <h2 class="text-xl font-bold text-gray-800 mb-3 flex items-center">
+            <ion-icon
+              name="receipt-outline"
+              class="text-gray-500 mr-2"
+            ></ion-icon>
+            Compras Recientes
+          </h2>
+          <div class="space-y-3">
+            <div
+              class="bg-white border p-4 rounded-lg flex justify-between items-center"
+            >
+              <div>
+                <p class="font-semibold text-gray-700">
+                  Compra en Tienda Centro
+                </p>
+                <p class="text-sm text-gray-500">05 Oct, 2025</p>
+              </div>
+              <span class="font-bold text-gray-900">$1,527.30</span>
+            </div>
+            <div
+              class="bg-white border p-4 rounded-lg flex justify-between items-center"
+            >
+              <div>
+                <p class="font-semibold text-gray-700">
+                  Compra en Tienda Plaza
+                </p>
+                <p class="text-sm text-gray-500">28 Sep, 2025</p>
+              </div>
+              <span class="font-bold text-gray-900">$899.90</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Sección de Promociones de la Tienda -->
+        <section>
+          <h2 class="text-xl font-bold text-gray-800 mb-3 flex items-center">
+            <ion-icon
+              name="pricetag-outline"
+              class="text-gray-500 mr-2"
+            ></ion-icon>
+            Promociones Vigentes
+          </h2>
+          <div class="space-y-3">
+            <div class="bg-white border p-4 rounded-lg">
+              <p class="font-semibold text-gray-700">
+                20% Descuento en Chamarras
+              </p>
+              <p class="text-sm text-gray-500 mt-1">
+                Aplica a todos los productos de la categoría "Chamarras".
+              </p>
+            </div>
+            <div class="bg-white border p-4 rounded-lg">
+              <p class="font-semibold text-gray-700">2x1 en Camisas</p>
+              <p class="text-sm text-gray-500 mt-1">
+                Compra una y llévate la segunda de igual o menor precio.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

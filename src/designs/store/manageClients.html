@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Retail POS - Gestión de Clientes</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Ionicons for icons -->
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"
+    ></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      /* Styles for active tabs */
+      .tab-active {
+        border-color: #4f46e5;
+        color: #4f46e5;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100">
+    <div class="flex h-screen">
+      <!-- Sidebar de Navegación -->
+      <aside class="w-64 bg-white flex flex-col shadow-lg">
+        <!-- Perfil de Usuario -->
+        <div class="p-6 border-b">
+          <div class="flex items-center space-x-4">
+            <img
+              class="h-10 w-10 rounded-full object-cover"
+              src="https://placehold.co/100x100/E2E8F0/4A5568?text=AV"
+              alt="Avatar de Usuario"
+            />
+            <div>
+              <p class="font-semibold text-gray-800">Ana García</p>
+              <span
+                class="text-xs text-green-500 font-medium bg-green-100 px-2 py-0.5 rounded-full"
+                >Cajero</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Menú Principal -->
+        <nav class="flex-1 px-4 py-6 space-y-4">
+          <div>
+            <p
+              class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider"
+            >
+              General
+            </p>
+            <div class="mt-2 space-y-1">
+              <a
+                href="#"
+                class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+              >
+                <ion-icon name="grid-outline" class="text-xl"></ion-icon>
+                <span>Punto de Venta</span>
+              </a>
+              <a
+                href="#"
+                class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+              >
+                <ion-icon name="receipt-outline" class="text-xl"></ion-icon>
+                <span>Ventas</span>
+              </a>
+            </div>
+          </div>
+          <div>
+            <p
+              class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider"
+            >
+              Gestión
+            </p>
+            <div class="mt-2 space-y-1">
+              <a
+                href="#"
+                class="flex items-center space-x-3 px-4 py-2.5 bg-indigo-50 text-indigo-700 font-semibold rounded-lg"
+              >
+                <ion-icon name="people-outline" class="text-xl"></ion-icon>
+                <span>Clientes</span>
+              </a>
+              <a
+                href="#"
+                class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+              >
+                <ion-icon name="cube-outline" class="text-xl"></ion-icon>
+                <span>Productos</span>
+              </a>
+            </div>
+          </div>
+        </nav>
+
+        <!-- Menú de Salida -->
+        <div class="px-4 py-6 border-t">
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-lg"
+          >
+            <ion-icon name="log-out-outline" class="text-xl"></ion-icon>
+            <span>Cerrar Sesión</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- Contenido Principal -->
+      <main class="flex-1 flex flex-col p-6 overflow-y-auto">
+        <!-- Cabecera -->
+        <div class="flex justify-between items-center mb-6">
+          <h1 class="text-3xl font-bold text-gray-800">Gestión de Clientes</h1>
+          <button
+            id="add-client-btn"
+            class="flex items-center space-x-2 bg-indigo-600 text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition shadow"
+          >
+            <ion-icon name="add-outline" class="text-xl"></ion-icon>
+            <span>Registrar Cliente</span>
+          </button>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div
+            class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4"
+          >
+            <div class="bg-blue-100 p-3 rounded-full">
+              <ion-icon
+                name="people-circle-outline"
+                class="text-3xl text-blue-600"
+              ></ion-icon>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Total de Clientes</p>
+              <p class="text-2xl font-bold text-gray-800">1,245</p>
+            </div>
+          </div>
+          <div
+            class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4"
+          >
+            <div class="bg-yellow-100 p-3 rounded-full">
+              <ion-icon
+                name="star-outline"
+                class="text-3xl text-yellow-600"
+              ></ion-icon>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Miembros VIP</p>
+              <p class="text-2xl font-bold text-gray-800">187</p>
+            </div>
+          </div>
+          <div
+            class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4"
+          >
+            <div class="bg-green-100 p-3 rounded-full">
+              <ion-icon
+                name="repeat-outline"
+                class="text-3xl text-green-600"
+              ></ion-icon>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Tasa de Retorno</p>
+              <p class="text-2xl font-bold text-gray-800">68%</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contenido Principal con Pestañas -->
+        <div class="flex-1 bg-white p-6 rounded-xl shadow-lg">
+          <!-- Navegación de Pestañas -->
+          <div class="border-b border-gray-200">
+            <nav class="flex -mb-px space-x-8" id="main-tabs">
+              <button
+                data-tab="clientes"
+                class="tab-btn py-4 px-1 border-b-2 text-gray-500 whitespace-nowrap tab-active"
+              >
+                Clientes
+              </button>
+              <button
+                data-tab="apartados"
+                class="tab-btn py-4 px-1 border-b-2 text-gray-500 whitespace-nowrap"
+              >
+                Apartados
+              </button>
+            </nav>
+          </div>
+
+          <!-- Contenido de las Pestañas -->
+          <div id="tab-content" class="pt-6">
+            <!-- Pestaña de Clientes -->
+            <div id="clientes" class="tab-pane">
+              <!-- Filtros de clientes -->
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex space-x-2 p-1 bg-gray-100 rounded-lg">
+                  <button
+                    class="client-filter-btn px-4 py-1.5 text-sm font-semibold rounded-md bg-white text-indigo-700 shadow-sm"
+                  >
+                    Todos
+                  </button>
+                  <button
+                    class="client-filter-btn px-4 py-1.5 text-sm font-semibold text-gray-600"
+                  >
+                    VIP
+                  </button>
+                  <button
+                    class="client-filter-btn px-4 py-1.5 text-sm font-semibold text-gray-600"
+                  >
+                    Normales
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar cliente por nombre o email..."
+                  class="w-full max-w-xs border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <!-- Tabla de Clientes -->
+              <table class="w-full text-sm text-left text-gray-500">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                  <tr>
+                    <th scope="col" class="px-6 py-3">Nombre</th>
+                    <th scope="col" class="px-6 py-3">Email</th>
+                    <th scope="col" class="px-6 py-3">Teléfono</th>
+                    <th scope="col" class="px-6 py-3">Tipo</th>
+                    <th scope="col" class="px-6 py-3">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="bg-white border-b hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium text-gray-900">
+                      Juan Pérez
+                    </td>
+                    <td class="px-6 py-4">juan.perez@example.com</td>
+                    <td class="px-6 py-4">427-123-4567</td>
+                    <td class="px-6 py-4">
+                      <span
+                        class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full"
+                        >VIP</span
+                      >
+                    </td>
+                    <td class="px-6 py-4">
+                      <button
+                        class="edit-client-btn font-medium text-indigo-600 hover:underline"
+                      >
+                        Ver Detalles
+                      </button>
+                    </td>
+                  </tr>
+                  <tr class="bg-white border-b hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium text-gray-900">
+                      María López
+                    </td>
+                    <td class="px-6 py-4">maria.lopez@example.com</td>
+                    <td class="px-6 py-4">427-987-6543</td>
+                    <td class="px-6 py-4">
+                      <span
+                        class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded-full"
+                        >Normal</span
+                      >
+                    </td>
+                    <td class="px-6 py-4">
+                      <button
+                        class="edit-client-btn font-medium text-indigo-600 hover:underline"
+                      >
+                        Ver Detalles
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- Pestaña de Apartados -->
+            <div id="apartados" class="tab-pane hidden">
+              <table class="w-full text-sm text-left text-gray-500">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                  <tr>
+                    <th scope="col" class="px-6 py-3">Cliente</th>
+                    <th scope="col" class="px-6 py-3">Producto</th>
+                    <th scope="col" class="px-6 py-3">Total Apartado</th>
+                    <th scope="col" class="px-6 py-3">Monto Pagado</th>
+                    <th scope="col" class="px-6 py-3">Estatus</th>
+                    <th scope="col" class="px-6 py-3">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="bg-white border-b hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium text-gray-900">
+                      Carlos Sánchez
+                    </td>
+                    <td class="px-6 py-4">Chamarra de Piel</td>
+                    <td class="px-6 py-4 font-semibold">$1,500.00</td>
+                    <td class="px-6 py-4 text-green-600 font-semibold">
+                      $500.00
+                    </td>
+                    <td class="px-6 py-4">
+                      <span
+                        class="bg-green-100 text-green-800 font-medium px-2.5 py-0.5 rounded-full"
+                        >Activo</span
+                      >
+                    </td>
+                    <td class="px-6 py-4">
+                      <button
+                        class="view-apartado-btn font-medium text-indigo-600 hover:underline"
+                      >
+                        Ver Detalles
+                      </button>
+                    </td>
+                  </tr>
+                  <tr class="bg-white border-b hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium text-gray-900">
+                      Laura Méndez
+                    </td>
+                    <td class="px-6 py-4">Bolsa de Mano</td>
+                    <td class="px-6 py-4 font-semibold">$800.00</td>
+                    <td class="px-6 py-4 text-green-600 font-semibold">
+                      $300.00
+                    </td>
+                    <td class="px-6 py-4">
+                      <span
+                        class="bg-red-100 text-red-800 font-medium px-2.5 py-0.5 rounded-full"
+                        >Vencido</span
+                      >
+                    </td>
+                    <td class="px-6 py-4">
+                      <button
+                        class="view-apartado-btn font-medium text-indigo-600 hover:underline"
+                      >
+                        Ver Detalles
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Modal para Registrar/Editar Cliente -->
+    <div
+      id="client-modal"
+      class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden transition-opacity duration-300"
+    >
+      <div
+        class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-8 m-4 transform transition-all duration-300 scale-95 opacity-0"
+      >
+        <div class="flex justify-between items-center border-b pb-4 mb-6">
+          <h2 id="client-modal-title" class="text-2xl font-bold text-gray-800">
+            Registrar Nuevo Cliente
+          </h2>
+          <button
+            class="close-modal-btn text-gray-400 hover:text-gray-800 text-3xl"
+            data-modal-id="client-modal"
+          >
+            &times;
+          </button>
+        </div>
+        <form>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label
+                for="client-name"
+                class="block text-sm font-medium text-gray-700"
+                >Nombre Completo</label
+              >
+              <input
+                type="text"
+                id="client-name"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label
+                for="client-type"
+                class="block text-sm font-medium text-gray-700"
+                >Tipo de Cliente</label
+              >
+              <select
+                id="client-type"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              >
+                <option>Normal</option>
+                <option>VIP</option>
+              </select>
+            </div>
+            <div>
+              <label
+                for="client-email"
+                class="block text-sm font-medium text-gray-700"
+                >Email</label
+              >
+              <input
+                type="email"
+                id="client-email"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label
+                for="client-phone"
+                class="block text-sm font-medium text-gray-700"
+                >Teléfono</label
+              >
+              <input
+                type="tel"
+                id="client-phone"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <!-- Sección de Código QR -->
+          <div id="qr-code-section" class="mt-6 border-t pt-6 hidden">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">
+              Código QR del Cliente
+            </h3>
+            <div class="flex items-center space-x-6 bg-gray-50 p-4 rounded-lg">
+              <img
+                src="https://placehold.co/150x150/000000/FFFFFF?text=QR"
+                alt="Código QR"
+                class="rounded-lg shadow-md"
+              />
+              <div>
+                <p class="text-sm text-gray-600">
+                  Este es el ID único del cliente.
+                </p>
+                <p class="text-sm text-gray-600">
+                  Escanéalo para guardarlo y usarlo en todas las sucursales.
+                </p>
+                <button
+                  type="button"
+                  class="mt-3 flex items-center space-x-2 text-indigo-600 font-semibold text-sm hover:text-indigo-800"
+                >
+                  <ion-icon name="download-outline"></ion-icon>
+                  <span>Descargar QR</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-8 flex justify-end">
+            <button
+              type="submit"
+              class="bg-indigo-600 text-white font-semibold py-2.5 px-6 rounded-lg hover:bg-indigo-700 transition"
+            >
+              Guardar Cliente
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal para Detalle de Apartado -->
+    <div
+      id="apartado-detail-modal"
+      class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden transition-opacity duration-300"
+    >
+      <div
+        class="bg-white rounded-xl shadow-2xl w-full max-w-3xl p-8 m-4 transform transition-all duration-300 scale-95 opacity-0"
+      >
+        <div class="flex justify-between items-center border-b pb-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-800">
+              Detalle de Apartado
+            </h2>
+            <p class="text-sm text-gray-500">
+              Cliente: Carlos Sánchez - Chamarra de Piel
+            </p>
+          </div>
+          <button
+            class="close-modal-btn text-gray-400 hover:text-gray-800 text-3xl"
+            data-modal-id="apartado-detail-modal"
+          >
+            &times;
+          </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <!-- Columna de Historial de Pagos -->
+          <div class="md:col-span-3">
+            <h3 class="font-semibold text-lg mb-3">Historial de Pagos</h3>
+            <div class="space-y-2 max-h-64 overflow-y-auto pr-2">
+              <!-- Pago 1 -->
+              <div
+                class="bg-gray-50 p-3 rounded-lg flex justify-between items-center"
+              >
+                <div>
+                  <p class="font-semibold text-gray-800">Pago Inicial</p>
+                  <p class="text-xs text-gray-500">
+                    01 de Oct, 2025 - Efectivo
+                  </p>
+                </div>
+                <p class="font-bold text-gray-800">$500.00</p>
+              </div>
+              <!-- Pago 2 -->
+              <div
+                class="bg-gray-50 p-3 rounded-lg flex justify-between items-center"
+              >
+                <div>
+                  <p class="font-semibold text-gray-800">Abono</p>
+                  <p class="text-xs text-gray-500">15 de Oct, 2025 - Tarjeta</p>
+                </div>
+                <p class="font-bold text-gray-800">$250.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Columna de Resumen y Acciones -->
+          <div class="md:col-span-2">
+            <div class="bg-indigo-50 p-4 rounded-lg space-y-3 mb-4">
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Total del Producto:</span
+                ><span class="font-semibold text-gray-800">$1,500.00</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Total Pagado:</span
+                ><span class="font-semibold text-green-600">$750.00</span>
+              </div>
+              <div
+                class="flex justify-between font-bold text-base pt-2 border-t mt-1"
+              >
+                <span class="text-indigo-800">Monto Restante:</span
+                ><span class="text-indigo-800">$750.00</span>
+              </div>
+            </div>
+            <div>
+              <h4 class="font-semibold mb-2">Agregar Nuevo Pago</h4>
+              <div class="flex space-x-2">
+                <input
+                  type="number"
+                  placeholder="Monto"
+                  class="w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  class="bg-indigo-600 text-white font-semibold px-4 rounded-lg hover:bg-indigo-700 transition"
+                >
+                  <ion-icon name="add-outline" class="text-xl"></ion-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-8 flex justify-end space-x-4">
+          <button
+            class="flex items-center space-x-2 bg-gray-100 text-gray-800 font-semibold py-2.5 px-5 rounded-lg hover:bg-gray-200 transition"
+          >
+            <ion-icon name="print-outline"></ion-icon>
+            <span>Imprimir Estado de Cuenta</span>
+          </button>
+          <button
+            class="bg-green-500 text-white font-semibold py-2.5 px-6 rounded-lg hover:bg-green-600 transition"
+          >
+            Cerrar Apartado
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // --- Generic Modal Logic ---
+        const modals = {};
+        const setupModal = (modalId) => {
+          const modal = document.getElementById(modalId);
+          if (!modal) return;
+          const modalContent = modal.querySelector('div[class*="transform"]');
+          modals[modalId] = { modal, modalContent };
+
+          modal.addEventListener("click", (e) => {
+            if (e.target === modal) closeModal(modalId);
+          });
+        };
+
+        ["client-modal", "apartado-detail-modal"].forEach(setupModal);
+
+        const openModal = (modalId) => {
+          const modalData = modals[modalId];
+          if (!modalData) return;
+          modalData.modal.classList.remove("hidden");
+          setTimeout(() => {
+            modalData.modal.classList.remove("opacity-0");
+            modalData.modalContent.classList.remove("scale-95", "opacity-0");
+          }, 10);
+        };
+
+        const closeModal = (modalId) => {
+          const modalData = modals[modalId];
+          if (!modalData) return;
+          modalData.modalContent.classList.add("scale-95", "opacity-0");
+          modalData.modal.classList.add("opacity-0");
+          setTimeout(() => modalData.modal.classList.add("hidden"), 300);
+        };
+
+        document.querySelectorAll(".close-modal-btn").forEach((btn) => {
+          btn.addEventListener("click", () => closeModal(btn.dataset.modalId));
+        });
+
+        // --- Tabs Logic ---
+        const mainTabs = document.getElementById("main-tabs");
+        const tabPanes = document.querySelectorAll("#tab-content .tab-pane");
+
+        mainTabs.addEventListener("click", (e) => {
+          if (e.target.classList.contains("tab-btn")) {
+            mainTabs
+              .querySelectorAll(".tab-btn")
+              .forEach((btn) => btn.classList.remove("tab-active"));
+            e.target.classList.add("tab-active");
+            tabPanes.forEach((pane) => pane.classList.add("hidden"));
+            document
+              .getElementById(e.target.dataset.tab)
+              .classList.remove("hidden");
+          }
+        });
+
+        // --- Client Modal Logic ---
+        const modalTitle = document.getElementById("client-modal-title");
+        const qrSection = document.getElementById("qr-code-section");
+
+        const openClientModal = (isEdit = false) => {
+          modalTitle.textContent = isEdit
+            ? "Detalles del Cliente"
+            : "Registrar Nuevo Cliente";
+          if (isEdit) {
+            qrSection.classList.remove("hidden");
+          } else {
+            qrSection.classList.add("hidden");
+          }
+          openModal("client-modal");
+        };
+
+        document
+          .getElementById("add-client-btn")
+          .addEventListener("click", () => openClientModal(false));
+        document.querySelectorAll(".edit-client-btn").forEach((btn) => {
+          btn.addEventListener("click", () => openClientModal(true));
+        });
+
+        // --- Apartado Detail Modal ---
+        document.querySelectorAll(".view-apartado-btn").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            openModal("apartado-detail-modal")
+          );
+        });
+      });
+    </script>
+  </body>
+</html>

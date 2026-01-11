@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Retail POS - Gestión de Promociones</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Ionicons for icons -->
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"
+    ></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100">
+    <div class="flex h-screen">
+      <!-- Sidebar de Navegación -->
+      <aside class="w-64 bg-white flex flex-col shadow-lg">
+        <!-- Perfil de Usuario -->
+        <div class="p-6 border-b">
+          <div class="flex items-center space-x-4">
+            <img
+              class="h-10 w-10 rounded-full object-cover"
+              src="https://placehold.co/100x100/E2E8F0/4A5568?text=AV"
+              alt="Avatar de Usuario"
+            />
+            <div>
+              <p class="font-semibold text-gray-800">Ana García</p>
+              <span
+                class="text-xs text-green-500 font-medium bg-green-100 px-2 py-0.5 rounded-full"
+                >Cajero</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Menú Principal -->
+        <nav class="flex-1 px-4 py-6 space-y-2">
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="grid-outline" class="text-xl"></ion-icon>
+            <span>Punto de Venta</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="receipt-outline" class="text-xl"></ion-icon>
+            <span>Ventas</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="people-outline" class="text-xl"></ion-icon>
+            <span>Clientes</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="cube-outline" class="text-xl"></ion-icon>
+            <span>Productos</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 bg-indigo-50 text-indigo-700 font-semibold rounded-lg"
+          >
+            <ion-icon name="pricetag-outline" class="text-xl"></ion-icon>
+            <span>Promociones</span>
+          </a>
+        </nav>
+
+        <!-- Menú de Configuración y Salida -->
+        <div class="px-4 py-6 border-t space-y-2">
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg"
+          >
+            <ion-icon name="settings-outline" class="text-xl"></ion-icon>
+            <span>Configuración</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center space-x-3 px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-lg"
+          >
+            <ion-icon name="log-out-outline" class="text-xl"></ion-icon>
+            <span>Cerrar Sesión</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- Contenido Principal -->
+      <main class="flex-1 flex flex-col p-6 overflow-y-auto">
+        <!-- Cabecera -->
+        <div
+          class="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4"
+        >
+          <div>
+            <h1 class="text-3xl font-bold text-gray-800">
+              Gestión de Promociones
+            </h1>
+            <p class="text-gray-500 mt-1">
+              Crea y administra las ofertas de tu tienda.
+            </p>
+          </div>
+          <button
+            id="add-promo-btn"
+            class="flex items-center justify-center space-x-2 bg-indigo-600 text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition shadow"
+          >
+            <ion-icon name="add-outline" class="text-xl"></ion-icon>
+            <span>Crear Promoción</span>
+          </button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex space-x-2 p-1 bg-gray-200 rounded-lg">
+            <button
+              class="px-4 py-1.5 text-sm font-semibold rounded-md bg-white text-indigo-700 shadow-sm"
+            >
+              Activas
+            </button>
+            <button class="px-4 py-1.5 text-sm font-semibold text-gray-600">
+              Programadas
+            </button>
+            <button class="px-4 py-1.5 text-sm font-semibold text-gray-600">
+              Expiradas
+            </button>
+          </div>
+        </div>
+
+        <!-- Grid de Promociones -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Promo Card 1 (Activa) -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col border-t-4 border-green-500"
+          >
+            <div class="p-5 flex-1">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span
+                    class="text-xs font-semibold bg-green-100 text-green-800 px-3 py-1 rounded-full"
+                    >Activa</span
+                  >
+                  <h3 class="font-bold text-gray-800 text-lg mt-2">
+                    20% Descuento en Chamarras
+                  </h3>
+                </div>
+                <span
+                  class="text-sm font-bold bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full"
+                  >Porcentaje</span
+                >
+              </div>
+              <p class="text-sm text-gray-600 mt-2">
+                Aplica a todos los productos de la categoría "Chamarras".
+              </p>
+            </div>
+            <div
+              class="bg-gray-50 px-5 py-3 flex justify-between items-center text-sm text-gray-500"
+            >
+              <span>Vence: 31 Dic, 2025</span>
+              <div class="flex space-x-2">
+                <button
+                  class="edit-promo-btn text-gray-400 hover:text-indigo-600"
+                >
+                  <ion-icon name="create-outline" class="text-xl"></ion-icon>
+                </button>
+                <button class="text-gray-400 hover:text-red-600">
+                  <ion-icon
+                    name="close-circle-outline"
+                    class="text-xl"
+                  ></ion-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Promo Card 2 (Inactiva/Expirada) -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col border-t-4 border-gray-300 opacity-75"
+          >
+            <div class="p-5 flex-1">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span
+                    class="text-xs font-semibold bg-gray-100 text-gray-800 px-3 py-1 rounded-full"
+                    >Expirada</span
+                  >
+                  <h3 class="font-bold text-gray-800 text-lg mt-2">
+                    2x1 en Camisas
+                  </h3>
+                </div>
+                <span
+                  class="text-sm font-bold bg-pink-100 text-pink-800 px-3 py-1 rounded-full"
+                  >2x1</span
+                >
+              </div>
+              <p class="text-sm text-gray-600 mt-2">
+                Compra una camisa y llévate la segunda de igual o menor precio
+                gratis.
+              </p>
+            </div>
+            <div
+              class="bg-gray-50 px-5 py-3 flex justify-between items-center text-sm text-gray-500"
+            >
+              <span>Expiró: 30 Sep, 2025</span>
+              <div class="flex space-x-2">
+                <button
+                  class="edit-promo-btn text-gray-400 hover:text-indigo-600"
+                >
+                  <ion-icon name="create-outline" class="text-xl"></ion-icon>
+                </button>
+                <button class="text-gray-400 hover:text-green-600">
+                  <ion-icon
+                    name="play-circle-outline"
+                    class="text-xl"
+                  ></ion-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Promo Card 3 (Programada) -->
+          <div
+            class="bg-white rounded-xl shadow-lg flex flex-col border-t-4 border-blue-400"
+          >
+            <div class="p-5 flex-1">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span
+                    class="text-xs font-semibold bg-blue-100 text-blue-800 px-3 py-1 rounded-full"
+                    >Programada</span
+                  >
+                  <h3 class="font-bold text-gray-800 text-lg mt-2">
+                    Cupón BUENFIN25
+                  </h3>
+                </div>
+                <span
+                  class="text-sm font-bold bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full"
+                  >Cupón</span
+                >
+              </div>
+              <p class="text-sm text-gray-600 mt-2">
+                $100 de descuento en compras mayores a $1,000.
+              </p>
+            </div>
+            <div
+              class="bg-gray-50 px-5 py-3 flex justify-between items-center text-sm text-gray-500"
+            >
+              <span>Inicia: 15 Nov, 2025</span>
+              <div class="flex space-x-2">
+                <button
+                  class="edit-promo-btn text-gray-400 hover:text-indigo-600"
+                >
+                  <ion-icon name="create-outline" class="text-xl"></ion-icon>
+                </button>
+                <button class="text-gray-400 hover:text-red-600">
+                  <ion-icon
+                    name="close-circle-outline"
+                    class="text-xl"
+                  ></ion-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Modal para Crear/Editar Promoción -->
+    <div
+      id="promo-modal"
+      class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden transition-opacity duration-300"
+    >
+      <div
+        class="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-8 m-4 transform transition-all duration-300 scale-95 opacity-0 max-h-[90vh] overflow-y-auto"
+      >
+        <div class="flex justify-between items-center border-b pb-4 mb-6">
+          <h2 id="promo-modal-title" class="text-2xl font-bold text-gray-800">
+            Crear Nueva Promoción
+          </h2>
+          <button
+            class="close-modal-btn text-gray-400 hover:text-gray-800 text-3xl"
+            data-modal-id="promo-modal"
+          >
+            &times;
+          </button>
+        </div>
+        <form>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Nombre de la Promoción</label
+              >
+              <input
+                type="text"
+                placeholder="Ej: Venta Nocturna"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Tipo de Promoción</label
+              >
+              <select
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              >
+                <option>Descuento por Porcentaje</option>
+                <option>Descuento Fijo ($)</option>
+                <option>2x1</option>
+                <option>Cupón</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Valor del Descuento (%)</label
+              >
+              <input
+                type="number"
+                placeholder="Ej: 15"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Código de Cupón (Opcional)</label
+              >
+              <input
+                type="text"
+                placeholder="Ej: VERANO25"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700"
+                >Productos Aplicables</label
+              >
+              <select
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              >
+                <option>Toda la tienda</option>
+                <option>Categoría: Camisas</option>
+                <option>Categoría: Pantalones</option>
+                <option>Productos específicos</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Fecha de Inicio</label
+              >
+              <input
+                type="date"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Fecha de Fin</label
+              >
+              <input
+                type="date"
+                class="mt-1 w-full border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+          <div class="mt-8 flex justify-end">
+            <button
+              type="submit"
+              class="bg-indigo-600 text-white font-semibold py-2.5 px-6 rounded-lg hover:bg-indigo-700 transition"
+            >
+              Guardar Promoción
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // --- Generic Modal Logic ---
+        const modals = {};
+        const setupModal = (modalId) => {
+          const modal = document.getElementById(modalId);
+          if (!modal) return;
+          const modalContent = modal.querySelector('div[class*="transform"]');
+          modals[modalId] = { modal, modalContent };
+
+          modal.addEventListener("click", (e) => {
+            if (e.target === modal) closeModal(modalId);
+          });
+        };
+
+        ["promo-modal"].forEach(setupModal);
+
+        const openModal = (modalId) => {
+          const modalData = modals[modalId];
+          if (!modalData) return;
+          modalData.modal.classList.remove("hidden");
+          setTimeout(() => {
+            modalData.modal.classList.remove("opacity-0");
+            modalData.modalContent.classList.remove("scale-95", "opacity-0");
+          }, 10);
+        };
+
+        const closeModal = (modalId) => {
+          const modalData = modals[modalId];
+          if (!modalData) return;
+          modalData.modalContent.classList.add("scale-95", "opacity-0");
+          modalData.modal.classList.add("opacity-0");
+          setTimeout(() => modalData.modal.classList.add("hidden"), 300);
+        };
+
+        document.querySelectorAll(".close-modal-btn").forEach((btn) => {
+          btn.addEventListener("click", () => closeModal(btn.dataset.modalId));
+        });
+
+        // --- Promo Modal ---
+        const promoModalTitle = document.getElementById("promo-modal-title");
+
+        const openPromoModal = (isEdit = false) => {
+          promoModalTitle.textContent = isEdit
+            ? "Editar Promoción"
+            : "Crear Nueva Promoción";
+          openModal("promo-modal");
+        };
+
+        document
+          .getElementById("add-promo-btn")
+          .addEventListener("click", () => openPromoModal(false));
+        document.querySelectorAll(".edit-promo-btn").forEach((btn) => {
+          btn.addEventListener("click", () => openPromoModal(true));
+        });
+      });
+    </script>
+  </body>
+</html>
