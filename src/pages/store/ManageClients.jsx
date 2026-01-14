@@ -1,299 +1,753 @@
-import { useState } from 'react';
-import { Plus, Users2, Star, RotateCcw, Download } from 'lucide-react';
-import Card, { CardTitle } from '../../components/ui/Card';
+import { useState, useEffect, useMemo } from 'react';
+import { 
+  Plus, 
+  Users2, 
+  Star, 
+  Search, 
+  Eye, 
+  Pencil, 
+  Trash2,
+  Phone,
+  Mail,
+  Calendar,
+  DollarSign,
+  Award,
+  TrendingUp,
+  Copy,
+  CheckCircle,
+  ShoppingBag,
+  Store
+} from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import Tabs from '../../components/ui/Tabs';
-import StatsCard from '../../components/shared/StatsCard';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { getAll, create, update, remove, getClientMonthlyTotal, getClientPurchases } from '../../api/firestoreService';
+import { useAuth } from '../../context/AuthContext';
+import { useStore } from '../../context/StoreContext';
 
-// Mock data
-const mockClients = [
-  { id: '1', name: 'Juan Pérez', email: 'juan.perez@example.com', phone: '427-123-4567', isVip: true },
-  { id: '2', name: 'María López', email: 'maria.lopez@example.com', phone: '427-987-6543', isVip: false },
-];
-
-const mockApartados = [
-  { id: '1', client: 'Carlos Sánchez', product: 'Chamarra de Piel', total: 1500, paid: 500, status: 'active' },
-  { id: '2', client: 'Laura Méndez', product: 'Bolsa de Mano', total: 800, paid: 300, status: 'expired' },
-];
+const VIP_THRESHOLD = 2000; // $2000 para ser VIP
+const VIP_DISCOUNT = 15; // 15% de descuento
 
 export default function ManageClients() {
-  const [showClientModal, setShowClientModal] = useState(false);
-  const [showApartadoModal, setShowApartadoModal] = useState(false);
+  const { user } = useAuth();
+  const { storeId, storeName } = useStore();
+  
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState('all');
+  
+  const [showModal, setShowModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [clientFilter, setClientFilter] = useState('all');
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const handleAddClient = () => {
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    notes: ''
+  });
+
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const fetchClients = async () => {
+    try {
+      setLoading(true);
+      const data = await getAll('clients');
+      
+      // Load monthly totals from subcollections for each client
+      const clientsWithTotals = await Promise.all(
+        data.map(async (client) => {
+          try {
+            const monthlyTotal = await getClientMonthlyTotal(client.id);
+            return {
+              ...client,
+              monthlyPurchases: monthlyTotal,
+              isVip: monthlyTotal >= VIP_THRESHOLD
+            };
+          } catch (error) {
+            console.error(`Error getting monthly total for ${client.id}:`, error);
+            return { ...client, monthlyPurchases: 0, isVip: false };
+          }
+        })
+      );
+      
+      setClients(clientsWithTotals);
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Generate unique 5-digit client ID
+  const generateClientId = () => {
+    const existingIds = clients.map(c => c.clientId);
+    let newId;
+    do {
+      newId = Math.floor(10000 + Math.random() * 90000).toString();
+    } while (existingIds.includes(newId));
+    return newId;
+  };
+
+  // Check if client is VIP based on monthly purchases
+  const isVip = (client) => {
+    return (client.monthlyPurchases || 0) >= VIP_THRESHOLD;
+  };
+
+  // Filter clients
+  const filteredClients = useMemo(() => {
+    let result = clients;
+    
+    if (filter === 'vip') {
+      result = result.filter(c => c.isVip || isVip(c));
+    } else if (filter === 'normal') {
+      result = result.filter(c => !c.isVip && !isVip(c));
+    }
+    
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(c => 
+        c.name?.toLowerCase().includes(term) ||
+        c.phone?.includes(term) ||
+        c.email?.toLowerCase().includes(term) ||
+        c.clientId?.includes(term)
+      );
+    }
+    
+    return result.sort((a, b) => (b.monthlyPurchases || 0) - (a.monthlyPurchases || 0));
+  }, [clients, filter, searchTerm]);
+
+  // Stats - calculated from real subcollection data
+  const stats = useMemo(() => {
+    const totalClients = clients.length;
+    const vipClients = clients.filter(c => c.isVip || isVip(c)).length;
+    const totalMonthlyPurchases = clients.reduce((sum, c) => sum + (c.monthlyPurchases || 0), 0);
+    const avgPurchases = totalClients > 0 ? totalMonthlyPurchases / totalClients : 0;
+    
+    return { totalClients, vipClients, totalMonthlyPurchases, avgPurchases };
+  }, [clients]);
+
+  const resetForm = () => {
+    setFormData({ name: '', phone: '', email: '', notes: '' });
+    setSelectedClient(null);
+  };
+
+  const handleAdd = () => {
     setIsEditing(false);
-    setShowClientModal(true);
+    resetForm();
+    setShowModal(true);
   };
 
-  const handleViewClient = () => {
+  const handleEdit = (client) => {
     setIsEditing(true);
-    setShowClientModal(true);
+    setSelectedClient(client);
+    setFormData({
+      name: client.name || '',
+      phone: client.phone || '',
+      email: client.email || '',
+      notes: client.notes || ''
+    });
+    setShowModal(true);
   };
 
-  const tabs = [
-    {
-      id: 'clientes',
-      label: 'Clientes',
-      content: (
-        <div>
-          {/* Filters */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex space-x-2 p-1 bg-gray-100 rounded-lg">
-              {['all', 'vip', 'normal'].map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setClientFilter(filter)}
-                  className={`px-4 py-1.5 text-sm font-semibold rounded-md transition ${
-                    clientFilter === filter
-                      ? 'bg-white text-indigo-700 shadow-sm'
-                      : 'text-gray-600'
-                  }`}
-                >
-                  {filter === 'all' ? 'Todos' : filter === 'vip' ? 'VIP' : 'Normales'}
-                </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              placeholder="Buscar cliente por nombre o email..."
-              className="w-full max-w-xs border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+  const handleView = async (client) => {
+    setSelectedClient(client);
+    setShowDetailModal(true);
+    
+    // Load purchases from subcollection
+    try {
+      const [purchases, monthlyTotal] = await Promise.all([
+        getClientPurchases(client.id),
+        getClientMonthlyTotal(client.id)
+      ]);
+      
+      // Update selected client with real data
+      setSelectedClient(prev => ({
+        ...prev,
+        purchases: purchases,
+        monthlyPurchases: monthlyTotal,
+        isVip: monthlyTotal >= VIP_THRESHOLD
+      }));
+    } catch (error) {
+      console.error('Error loading client purchases:', error);
+    }
+  };
 
-          {/* Clients Table */}
-          <table className="w-full text-sm text-left text-gray-500">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-              <tr>
-                <th className="px-6 py-3">Nombre</th>
-                <th className="px-6 py-3">Email</th>
-                <th className="px-6 py-3">Teléfono</th>
-                <th className="px-6 py-3">Tipo</th>
-                <th className="px-6 py-3">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockClients.map((client) => (
-                <tr key={client.id} className="bg-white border-b hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">{client.name}</td>
-                  <td className="px-6 py-4">{client.email}</td>
-                  <td className="px-6 py-4">{client.phone}</td>
-                  <td className="px-6 py-4">
-                    <Badge variant={client.isVip ? 'warning' : 'gray'}>
-                      {client.isVip ? 'VIP' : 'Normal'}
-                    </Badge>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={handleViewClient}
-                      className="font-medium text-indigo-600 hover:underline"
-                    >
-                      Ver Detalles
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ),
-    },
-    {
-      id: 'apartados',
-      label: 'Apartados',
-      content: (
-        <table className="w-full text-sm text-left text-gray-500">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-            <tr>
-              <th className="px-6 py-3">Cliente</th>
-              <th className="px-6 py-3">Producto</th>
-              <th className="px-6 py-3">Total Apartado</th>
-              <th className="px-6 py-3">Monto Pagado</th>
-              <th className="px-6 py-3">Estatus</th>
-              <th className="px-6 py-3">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mockApartados.map((apt) => (
-              <tr key={apt.id} className="bg-white border-b hover:bg-gray-50">
-                <td className="px-6 py-4 font-medium text-gray-900">{apt.client}</td>
-                <td className="px-6 py-4">{apt.product}</td>
-                <td className="px-6 py-4 font-semibold">{formatCurrency(apt.total)}</td>
-                <td className="px-6 py-4 text-green-600 font-semibold">{formatCurrency(apt.paid)}</td>
-                <td className="px-6 py-4">
-                  <Badge variant={apt.status === 'active' ? 'success' : 'danger'}>
-                    {apt.status === 'active' ? 'Activo' : 'Vencido'}
-                  </Badge>
-                </td>
-                <td className="px-6 py-4">
-                  <button
-                    onClick={() => setShowApartadoModal(true)}
-                    className="font-medium text-indigo-600 hover:underline"
-                  >
-                    Ver Detalles
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ),
-    },
-  ];
+  const handleDeleteClick = (client) => {
+    setSelectedClient(client);
+    setShowDeleteModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setSaving(true);
+      
+      if (isEditing && selectedClient) {
+        await update('clients', selectedClient.id, {
+          name: formData.name.trim(),
+          phone: formData.phone.trim(),
+          email: formData.email.trim(),
+          notes: formData.notes.trim()
+        });
+      } else {
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        await create('clients', {
+          clientId: generateClientId(),
+          name: formData.name.trim(),
+          phone: formData.phone.trim(),
+          email: formData.email.trim(),
+          notes: formData.notes.trim(),
+          monthlyPurchases: 0,
+          totalPurchases: 0,
+          lastPurchaseMonth: currentMonth,
+          createdAt: new Date(),
+          registeredBy: user?.uid || null,
+          registeredByName: user?.name || 'Desconocido',
+          registeredAtStoreId: storeId || null,
+          registeredAtStoreName: storeName || 'Desconocida'
+        });
+      }
+      
+      await fetchClients();
+      setShowModal(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving client:', error);
+      alert('Error al guardar cliente');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      setSaving(true);
+      await remove('clients', selectedClient.id);
+      await fetchClients();
+      setShowDeleteModal(false);
+      setSelectedClient(null);
+    } catch (error) {
+      console.error('Error deleting client:', error);
+      alert('Error al eliminar cliente');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyClientId = (clientId) => {
+    navigator.clipboard.writeText(clientId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const getVipProgress = (client) => {
+    const purchases = client.monthlyPurchases || 0;
+    return Math.min((purchases / VIP_THRESHOLD) * 100, 100);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Cargando clientes...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Gestión de Clientes</h1>
-        <Button icon={<Plus size={20} />} onClick={handleAddClient}>
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Gestión de Clientes</h1>
+          <p className="text-gray-500 mt-1">Administra tu cartera de clientes y programa VIP.</p>
+        </div>
+        <Button icon={<Plus size={18} />} onClick={handleAdd}>
           Registrar Cliente
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatsCard
-          title="Total de Clientes"
-          value="1,245"
-          icon={<Users2 size={24} />}
-          iconBgColor="bg-blue-100"
-          iconColor="text-blue-600"
-        />
-        <StatsCard
-          title="Miembros VIP"
-          value="187"
-          icon={<Star size={24} />}
-          iconBgColor="bg-yellow-100"
-          iconColor="text-yellow-600"
-        />
-        <StatsCard
-          title="Tasa de Retorno"
-          value="68%"
-          icon={<RotateCcw size={24} />}
-          iconBgColor="bg-green-100"
-          iconColor="text-green-600"
-        />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <Users2 size={18} />
+            <span className="text-white/80 text-sm">Total Clientes</span>
+          </div>
+          <p className="text-2xl font-bold">{stats.totalClients}</p>
+        </div>
+        <div className="bg-gradient-to-br from-yellow-500 to-orange-500 p-4 rounded-2xl text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <Star size={18} />
+            <span className="text-white/80 text-sm">Clientes VIP</span>
+          </div>
+          <p className="text-2xl font-bold">{stats.vipClients}</p>
+        </div>
+        <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign size={18} />
+            <span className="text-white/80 text-sm">Compras del Mes</span>
+          </div>
+          <p className="text-2xl font-bold">{formatCurrency(stats.totalMonthlyPurchases)}</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-4 rounded-2xl text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp size={18} />
+            <span className="text-white/80 text-sm">Promedio/Cliente</span>
+          </div>
+          <p className="text-2xl font-bold">{formatCurrency(stats.avgPurchases)}</p>
+        </div>
       </div>
 
-      {/* Main Content with Tabs */}
-      <Card>
-        <Tabs tabs={tabs} defaultTab="clientes" />
-      </Card>
+      {/* VIP Info Banner */}
+      <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl p-4 flex items-center gap-4">
+        <div className="p-3 bg-yellow-100 rounded-xl">
+          <Award size={24} className="text-yellow-600" />
+        </div>
+        <div className="flex-1">
+          <h3 className="font-bold text-gray-800">Programa VIP</h3>
+          <p className="text-sm text-gray-600">
+            Clientes que acumulen <strong>{formatCurrency(VIP_THRESHOLD)}</strong> en compras al mes obtienen <strong>{VIP_DISCOUNT}% de descuento</strong> en sus siguientes compras. Se reinicia cada mes.
+          </p>
+        </div>
+      </div>
 
-      {/* Client Modal */}
-      <Modal
-        isOpen={showClientModal}
-        onClose={() => setShowClientModal(false)}
-        title={isEditing ? 'Detalles del Cliente' : 'Registrar Nuevo Cliente'}
-        size="lg"
-      >
-        <form className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Nombre Completo" />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Cliente</label>
-              <select className="w-full border border-gray-300 rounded-lg py-2 px-3">
-                <option>Normal</option>
-                <option>VIP</option>
-              </select>
-            </div>
-            <Input label="Email" type="email" />
-            <Input label="Teléfono" type="tel" />
-          </div>
+      {/* Filters */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, teléfono, email o ID..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div className="flex space-x-2 p-1 bg-gray-200 rounded-xl w-fit">
+          {[
+            { id: 'all', label: 'Todos' },
+            { id: 'vip', label: '⭐ VIP' },
+            { id: 'normal', label: 'Normales' }
+          ].map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setFilter(id)}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition ${
+                filter === id
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          {/* QR Code Section (visible when editing) */}
-          {isEditing && (
-            <div className="mt-6 border-t pt-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Código QR del Cliente</h3>
-              <div className="flex items-center space-x-6 bg-gray-50 p-4 rounded-lg">
-                <div className="w-32 h-32 bg-white flex items-center justify-center border rounded-lg">
-                  QR Code
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Este es el ID único del cliente.</p>
-                  <p className="text-sm text-gray-600">Escanéalo para usarlo en todas las sucursales.</p>
-                  <button
-                    type="button"
-                    className="mt-3 flex items-center space-x-2 text-indigo-600 font-semibold text-sm hover:text-indigo-800"
-                  >
-                    <Download size={16} />
-                    <span>Descargar QR</span>
-                  </button>
+      {/* Clients Grid */}
+      {filteredClients.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow-md p-12 text-center">
+          <Users2 size={48} className="mx-auto mb-4 text-gray-300" />
+          <p className="text-gray-500">No hay clientes registrados</p>
+          <Button className="mt-4" onClick={handleAdd}>
+            Registrar Primer Cliente
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredClients.map(client => {
+            const clientIsVip = isVip(client);
+            const progress = getVipProgress(client);
+            
+            return (
+              <div 
+                key={client.id} 
+                className={`bg-white rounded-2xl shadow-md overflow-hidden border-t-4 ${
+                  clientIsVip ? 'border-yellow-500' : 'border-indigo-500'
+                }`}
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg ${
+                        clientIsVip 
+                          ? 'bg-gradient-to-br from-yellow-400 to-orange-500' 
+                          : 'bg-gradient-to-br from-indigo-400 to-purple-500'
+                      }`}>
+                        {client.name?.charAt(0).toUpperCase() || '?'}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-800">{client.name}</h3>
+                        <div className="flex items-center gap-1 text-xs text-gray-400">
+                          <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">#{client.clientId}</span>
+                          {clientIsVip && (
+                            <Badge variant="warning" className="ml-1">⭐ VIP</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button 
+                        onClick={() => handleView(client)}
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleEdit(client)}
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteClick(client)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm mb-4">
+                    {client.phone && (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <Phone size={14} />
+                        <span>{client.phone}</span>
+                      </div>
+                    )}
+                    {client.email && (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <Mail size={14} />
+                        <span className="truncate">{client.email}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* VIP Progress */}
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <div className="flex justify-between text-xs mb-2">
+                      <span className="text-gray-500">Compras del mes</span>
+                      <span className={`font-bold ${clientIsVip ? 'text-yellow-600' : 'text-gray-700'}`}>
+                        {formatCurrency(client.monthlyPurchases || 0)}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all ${
+                          clientIsVip 
+                            ? 'bg-gradient-to-r from-yellow-400 to-orange-500' 
+                            : 'bg-gradient-to-r from-indigo-400 to-purple-500'
+                        }`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs mt-1">
+                      <span className="text-gray-400">{progress.toFixed(0)}%</span>
+                      <span className="text-gray-400">Meta: {formatCurrency(VIP_THRESHOLD)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })}
+        </div>
+      )}
 
-          <div className="flex justify-end pt-4">
-            <Button type="submit">Guardar Cliente</Button>
+      {/* Add/Edit Modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={isEditing ? 'Editar Cliente' : 'Registrar Nuevo Cliente'}
+        size="md"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre Completo <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              required
+              className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+              placeholder="Juan Pérez"
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Teléfono <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                required
+                className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+                placeholder="427-123-4567"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+                placeholder="cliente@email.com"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notas
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              rows={2}
+              className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+              placeholder="Notas adicionales..."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button 
+              type="button" 
+              variant="secondary" 
+              className="flex-1"
+              onClick={() => setShowModal(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" className="flex-1" disabled={saving}>
+              {saving ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Registrar Cliente'}
+            </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Apartado Detail Modal */}
+      {/* Detail Modal */}
       <Modal
-        isOpen={showApartadoModal}
-        onClose={() => setShowApartadoModal(false)}
-        title="Detalle de Apartado"
-        size="3xl"
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        title="Detalle del Cliente"
+        size="md"
       >
-        <p className="text-sm text-gray-500 mb-6">Cliente: Carlos Sánchez - Chamarra de Piel</p>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-          {/* Payment History */}
-          <div className="md:col-span-3">
-            <h3 className="font-semibold text-lg mb-3">Historial de Pagos</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              <div className="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
-                <div>
-                  <p className="font-semibold text-gray-800">Pago Inicial</p>
-                  <p className="text-xs text-gray-500">01 de Oct, 2025 - Efectivo</p>
-                </div>
-                <p className="font-bold text-gray-800">{formatCurrency(500)}</p>
+        {selectedClient && (
+          <div className="space-y-6">
+            {/* Client Header */}
+            <div className="flex items-center gap-4">
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl ${
+                isVip(selectedClient) 
+                  ? 'bg-gradient-to-br from-yellow-400 to-orange-500' 
+                  : 'bg-gradient-to-br from-indigo-400 to-purple-500'
+              }`}>
+                {selectedClient.name?.charAt(0).toUpperCase() || '?'}
               </div>
-              <div className="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
-                <div>
-                  <p className="font-semibold text-gray-800">Abono</p>
-                  <p className="text-xs text-gray-500">15 de Oct, 2025 - Tarjeta</p>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-800">{selectedClient.name}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  {isVip(selectedClient) && <Badge variant="warning">⭐ Cliente VIP</Badge>}
+                  <Badge variant="gray">
+                    {VIP_DISCOUNT}% descuento activo
+                  </Badge>
                 </div>
-                <p className="font-bold text-gray-800">{formatCurrency(250)}</p>
               </div>
             </div>
-          </div>
 
-          {/* Summary */}
-          <div className="md:col-span-2">
-            <div className="bg-indigo-50 p-4 rounded-lg space-y-3 mb-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total del Producto:</span>
-                <span className="font-semibold text-gray-800">{formatCurrency(1500)}</span>
+            {/* Client ID with Barcode */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-2">Número de Cliente</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl font-mono font-bold text-gray-800 tracking-wider">
+                    #{selectedClient.clientId}
+                  </span>
+                </div>
+                <button
+                  onClick={() => copyClientId(selectedClient.clientId)}
+                  className="flex items-center gap-2 px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-200 transition"
+                >
+                  {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+                  {copied ? 'Copiado!' : 'Copiar'}
+                </button>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total Pagado:</span>
-                <span className="font-semibold text-green-600">{formatCurrency(750)}</span>
-              </div>
-              <div className="flex justify-between font-bold text-base pt-2 border-t">
-                <span className="text-indigo-800">Monto Restante:</span>
-                <span className="text-indigo-800">{formatCurrency(750)}</span>
+              
+              {/* Barcode Visual */}
+              <div className="mt-4 bg-white p-3 rounded-lg border-2 border-dashed border-gray-200">
+                <div className="flex justify-center gap-0.5">
+                  {selectedClient.clientId?.split('').map((digit, i) => (
+                    <div key={i} className="flex flex-col items-center">
+                      <div className="flex gap-px">
+                        {[...Array(parseInt(digit) + 1)].map((_, j) => (
+                          <div key={j} className="w-0.5 h-10 bg-black" />
+                        ))}
+                        <div className="w-1 h-10 bg-transparent" />
+                      </div>
+                      <span className="text-xs font-mono mt-1">{digit}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-center text-xs text-gray-400 mt-2">
+                  Escanear o dicar al vendedor
+                </p>
               </div>
             </div>
-            <div>
-              <h4 className="font-semibold mb-2">Agregar Nuevo Pago</h4>
-              <div className="flex space-x-2">
-                <Input type="number" placeholder="Monto" className="flex-1" />
-                <Button icon={<Plus size={20} />} />
+
+            {/* Contact Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-xs text-gray-500 mb-1">Teléfono</p>
+                <p className="font-medium text-gray-800">{selectedClient.phone || '-'}</p>
               </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-xs text-gray-500 mb-1">Email</p>
+                <p className="font-medium text-gray-800 truncate">{selectedClient.email || '-'}</p>
+              </div>
+            </div>
+
+            {/* Purchase Stats */}
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4">
+              <h3 className="font-bold text-gray-800 mb-3">Estadísticas de Compras</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500">Compras Este Mes</p>
+                  <p className="text-xl font-bold text-indigo-600">{formatCurrency(selectedClient.monthlyPurchases || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Compras Totales</p>
+                  <p className="text-xl font-bold text-gray-700">{formatCurrency(selectedClient.totalPurchases || 0)}</p>
+                </div>
+              </div>
+              
+              {/* VIP Progress */}
+              <div className="mt-4">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-500">Progreso VIP del mes</span>
+                  <span className="font-bold text-gray-700">
+                    {formatCurrency(selectedClient.monthlyPurchases || 0)} / {formatCurrency(VIP_THRESHOLD)}
+                  </span>
+                </div>
+                <div className="h-3 bg-white rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full ${
+                      isVip(selectedClient)
+                        ? 'bg-gradient-to-r from-yellow-400 to-orange-500' 
+                        : 'bg-gradient-to-r from-indigo-400 to-purple-500'
+                    }`}
+                    style={{ width: `${getVipProgress(selectedClient)}%` }}
+                  />
+                </div>
+                {(selectedClient.monthlyPurchases || 0) >= VIP_THRESHOLD ? (
+                  <p className="text-xs text-yellow-600 mt-2 font-medium">
+                    ⭐ ¡Cliente VIP! {VIP_DISCOUNT}% de descuento en todas sus compras este mes
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Faltan {formatCurrency(VIP_THRESHOLD - (selectedClient.monthlyPurchases || 0))} para ser VIP
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Purchase History */}
+            {selectedClient.purchases && selectedClient.purchases.length > 0 && (
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  <ShoppingBag size={16} />
+                  Historial de Compras ({selectedClient.purchases.length})
+                </h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {selectedClient.purchases.slice(0, 10).map((purchase, idx) => {
+                    const purchaseDate = purchase.createdAt?.toDate ? purchase.createdAt.toDate() : new Date(purchase.createdAt);
+                    return (
+                      <div key={purchase.id || idx} className="bg-white p-3 rounded-lg border border-gray-100">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <Store size={12} className="text-gray-400" />
+                            <span className="text-sm font-medium text-gray-700">{purchase.storeName || 'Tienda'}</span>
+                          </div>
+                          <span className="font-bold text-green-600">{formatCurrency(purchase.total || 0)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>{purchaseDate.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                          <span>{purchase.items?.length || 0} productos</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {selectedClient.notes && (
+              <div className="bg-yellow-50 rounded-xl p-3">
+                <p className="text-xs text-yellow-600 mb-1">Notas</p>
+                <p className="text-sm text-gray-700">{selectedClient.notes}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button 
+                variant="secondary" 
+                className="flex-1"
+                onClick={() => setShowDetailModal(false)}
+              >
+                Cerrar
+              </Button>
+              <Button 
+                className="flex-1"
+                onClick={() => {
+                  setShowDetailModal(false);
+                  handleEdit(selectedClient);
+                }}
+              >
+                Editar Cliente
+              </Button>
             </div>
           </div>
-        </div>
-        <div className="mt-8 flex justify-end space-x-4">
-          <Button variant="secondary">Imprimir Estado de Cuenta</Button>
-          <Button variant="success">Cerrar Apartado</Button>
+        )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} size="sm" showCloseButton={false}>
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-14 w-14 rounded-full bg-red-100 mb-4">
+            <Trash2 className="text-red-600" size={28} />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900">¿Eliminar Cliente?</h3>
+          <p className="mt-2 text-sm text-gray-500">
+            <strong>{selectedClient?.name}</strong>
+            <br />
+            Esta acción no se puede deshacer.
+          </p>
+          <div className="mt-6 flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setShowDeleteModal(false)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" className="flex-1" onClick={handleDelete} disabled={saving}>
+              {saving ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

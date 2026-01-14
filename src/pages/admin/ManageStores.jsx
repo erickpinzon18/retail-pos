@@ -17,7 +17,11 @@ import {
   Eye,
   Wallet,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Users2,
+  Star,
+  UserPlus,
+  Crown
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -25,7 +29,9 @@ import Badge from '../../components/ui/Badge';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getById, getSalesByDateRange, update, getCashClosesForDate } from '../../api/firestoreService';
+import { getAll, getById, getSalesByDateRange, update, getCashClosesForDate, getClientMonthlyTotal } from '../../api/firestoreService';
+
+const VIP_THRESHOLD = 2000;
 
 export default function ManageStores() {
   const [stores, setStores] = useState([]);
@@ -174,6 +180,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
   const [activeTab, setActiveTab] = useState('stats');
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [storeClients, setStoreClients] = useState([]);
   
   const [formData, setFormData] = useState({
     name: store.name || '',
@@ -222,6 +229,26 @@ function StoreDetailView({ store, onBack, onUpdate }) {
       const usersData = await getAll('users');
       const storeUsers = usersData.filter(u => u.storeId === store.id || !u.storeId);
       setUsers(storeUsers);
+      
+      // Get clients registered at this store
+      const clientsData = await getAll('clients');
+      const storeRegisteredClients = clientsData.filter(
+        c => c.registeredAtStoreId === store.id || c.registeredAtStoreName === store.name
+      );
+      
+      // Get monthly totals for each client
+      const clientsWithTotals = await Promise.all(
+        storeRegisteredClients.map(async (client) => {
+          try {
+            const monthlyTotal = await getClientMonthlyTotal(client.id);
+            return { ...client, monthlyPurchases: monthlyTotal };
+          } catch {
+            return { ...client, monthlyPurchases: 0 };
+          }
+        })
+      );
+      
+      setStoreClients(clientsWithTotals.sort((a, b) => (b.monthlyPurchases || 0) - (a.monthlyPurchases || 0)));
       
     } catch (error) {
       console.error('Error fetching store details:', error);
@@ -363,6 +390,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
     { id: 'stats', label: 'Estadísticas', icon: BarChart2 },
     { id: 'products', label: 'Productos', icon: ShoppingBag },
     { id: 'sellers', label: 'Vendedores', icon: Users },
+    { id: 'clients', label: 'Clientes', icon: Users2 },
     { id: 'config', label: 'Configuración', icon: Store },
   ];
 
@@ -685,6 +713,94 @@ function StoreDetailView({ store, onBack, onUpdate }) {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {activeTab === 'clients' && (
+        <div className="space-y-6">
+          {/* Client Stats for this Store */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <Users2 size={18} />
+                <span className="text-white/80 text-sm">Clientes Registrados</span>
+              </div>
+              <p className="text-2xl font-bold">{storeClients.length}</p>
+            </div>
+            <div className="bg-gradient-to-br from-yellow-500 to-orange-500 p-4 rounded-2xl text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <Star size={18} />
+                <span className="text-white/80 text-sm">Clientes VIP</span>
+              </div>
+              <p className="text-2xl font-bold">
+                {storeClients.filter(c => (c.monthlyPurchases || 0) >= VIP_THRESHOLD).length}
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign size={18} />
+                <span className="text-white/80 text-sm">Compras del Mes</span>
+              </div>
+              <p className="text-2xl font-bold">
+                {formatCurrency(storeClients.reduce((sum, c) => sum + (c.monthlyPurchases || 0), 0))}
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-4 rounded-2xl text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <Crown size={18} />
+                <span className="text-white/80 text-sm">% VIP</span>
+              </div>
+              <p className="text-2xl font-bold">
+                {storeClients.length > 0 
+                  ? Math.round((storeClients.filter(c => (c.monthlyPurchases || 0) >= VIP_THRESHOLD).length / storeClients.length) * 100) 
+                  : 0}%
+              </p>
+            </div>
+          </div>
+
+          {/* Clients Table */}
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <Users2 size={20} className="text-indigo-600" />
+                Clientes Registrados en Esta Tienda
+              </h3>
+            </div>
+            {storeClients.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">
+                <Users2 size={48} className="mx-auto mb-3 opacity-50" />
+                <p>No hay clientes registrados en esta tienda</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {storeClients.slice(0, 15).map((client, idx) => {
+                  const isVip = (client.monthlyPurchases || 0) >= VIP_THRESHOLD;
+                  return (
+                    <div key={client.id} className="p-4 flex items-center gap-4 hover:bg-gray-50">
+                      <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                        idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                        idx === 1 ? 'bg-gray-100 text-gray-600' :
+                        idx === 2 ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-50 text-gray-500'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-800">{client.name}</p>
+                        <p className="text-xs text-gray-500">#{client.clientId} • {client.phone || 'Sin tel'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">{formatCurrency(client.monthlyPurchases || 0)}</p>
+                        {isVip && (
+                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">⭐ VIP</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

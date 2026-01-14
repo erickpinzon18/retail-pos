@@ -65,7 +65,8 @@ export const StoreProvider = ({ children }) => {
     allStores,
     loading,
     selectStore,
-    storeId: currentStore?.id
+    storeId: currentStore?.id,
+    storeName: currentStore?.name
   };
 
   return (

@@ -371,3 +371,60 @@ export const getCashClosesForDate = async (storeId, date) => {
   }
   return [];
 };
+
+// ============================================
+// Client Purchase Functions - Subcollection: clients/{clientId}/purchases
+// ============================================
+
+/**
+ * Add a purchase to client's purchase history
+ */
+export const addClientPurchase = async (clientId, purchaseData) => {
+  const purchaseRef = collection(db, 'clients', clientId, 'purchases');
+  
+  const purchase = {
+    ...purchaseData,
+    createdAt: Timestamp.now()
+  };
+  
+  const docRef = await addDoc(purchaseRef, purchase);
+  return { id: docRef.id, ...purchase };
+};
+
+/**
+ * Get all purchases for a client
+ */
+export const getClientPurchases = async (clientId) => {
+  const purchasesRef = collection(db, 'clients', clientId, 'purchases');
+  const q = query(purchasesRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+/**
+ * Get client purchases for current month
+ */
+export const getClientMonthlyPurchases = async (clientId) => {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  const purchasesRef = collection(db, 'clients', clientId, 'purchases');
+  const q = query(
+    purchasesRef, 
+    where('createdAt', '>=', Timestamp.fromDate(startOfMonth)),
+    orderBy('createdAt', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+/**
+ * Calculate client's monthly total from purchases
+ */
+export const getClientMonthlyTotal = async (clientId) => {
+  const purchases = await getClientMonthlyPurchases(clientId);
+  return purchases.reduce((sum, p) => sum + (p.total || 0), 0);
+};
+

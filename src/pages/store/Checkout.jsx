@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Building2, QrCode, Tag, X } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Building2, QrCode, Tag, X, UserPlus, Star, Users } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -12,14 +12,23 @@ import {
   getProductCategories, 
   getActivePromotions,
   getById,
+  getAll,
+  create,
+  update,
   createSale,
-  updateProductStock 
+  updateProductStock,
+  addClientPurchase,
+  getClientMonthlyTotal
 } from '../../api/firestoreService';
+
+const VIP_THRESHOLD = 2000;
+const VIP_DISCOUNT = 15;
 
 export default function Checkout() {
   const { user } = useAuth();
-  const { storeId } = useStore();
+  const { storeId, storeName } = useStore();
   const searchInputRef = useRef(null);
+  const clientSearchRef = useRef(null);
   
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState(['Todos']);
@@ -30,10 +39,19 @@ export default function Checkout() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('Todos');
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showClientModal, setShowClientModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cashReceived, setCashReceived] = useState('');
   const [processing, setProcessing] = useState(false);
+
+  // Client search states
+  const [clients, setClients] = useState([]);
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientResults, setClientResults] = useState([]);
+  const [showClientResults, setShowClientResults] = useState(false);
+  const [savingClient, setSavingClient] = useState(false);
+  const [newClientData, setNewClientData] = useState({ name: '', phone: '' });
 
   // Auto-focus on search input on mount
   useEffect(() => {
@@ -53,16 +71,18 @@ export default function Checkout() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [productsData, categoriesData, promotionsData, storeData] = await Promise.all([
+        const [productsData, categoriesData, promotionsData, storeData, clientsData] = await Promise.all([
           getAllProducts(),
           getProductCategories(),
           getActivePromotions(storeId),
-          storeId ? getById('stores', storeId) : null
+          storeId ? getById('stores', storeId) : null,
+          getAll('clients')
         ]);
         setProducts(productsData);
         setCategories(['Todos', ...categoriesData]);
         setPromotions(promotionsData);
         setStoreConfig(storeData);
+        setClients(clientsData);
         
         // Set default payment method based on store config
         if (storeData?.paymentsAccepted) {
@@ -80,6 +100,23 @@ export default function Checkout() {
     fetchData();
   }, [storeId]);
 
+  // Client search
+  useEffect(() => {
+    if (clientSearch.trim().length >= 2) {
+      const term = clientSearch.toLowerCase();
+      const results = clients.filter(c => 
+        c.name?.toLowerCase().includes(term) ||
+        c.phone?.includes(term) ||
+        c.clientId?.includes(term)
+      ).slice(0, 5);
+      setClientResults(results);
+      setShowClientResults(true);
+    } else {
+      setClientResults([]);
+      setShowClientResults(false);
+    }
+  }, [clientSearch, clients]);
+
   // Handle barcode scan (Enter key press)
   const handleScan = (e) => {
     if (e.key === 'Enter' && searchTerm.trim()) {
@@ -94,6 +131,112 @@ export default function Checkout() {
         addToCart(product);
         setSearchTerm(''); // Clear input after adding
       }
+    }
+  };
+
+  // Handle client ID scan
+  const handleClientSearch = (e) => {
+    if (e.key === 'Enter' && clientSearch.trim()) {
+      e.preventDefault();
+      
+      // Find client by exact ID match
+      const client = clients.find(c => 
+        c.clientId === clientSearch.trim()
+      );
+      
+      if (client) {
+        selectClient(client);
+      }
+    }
+  };
+
+  const selectClient = async (client) => {
+    try {
+      // Get real monthly total from purchases subcollection
+      const monthlyTotal = await getClientMonthlyTotal(client.id);
+      const clientIsVip = monthlyTotal >= VIP_THRESHOLD;
+      
+      setCustomerInfo({
+        id: client.id,
+        clientId: client.clientId,
+        name: client.name,
+        phone: client.phone,
+        isVip: clientIsVip,
+        monthlyPurchases: monthlyTotal
+      });
+      setClientSearch('');
+      setShowClientResults(false);
+    } catch (error) {
+      console.error('Error getting client data:', error);
+      // Use basic info if error
+      setCustomerInfo({
+        id: client.id,
+        clientId: client.clientId,
+        name: client.name,
+        phone: client.phone,
+        isVip: false,
+        monthlyPurchases: 0
+      });
+      setClientSearch('');
+      setShowClientResults(false);
+    }
+  };
+
+  // Generate unique 5-digit client ID
+  const generateClientId = () => {
+    const existingIds = clients.map(c => c.clientId);
+    let newId;
+    do {
+      newId = Math.floor(10000 + Math.random() * 90000).toString();
+    } while (existingIds.includes(newId));
+    return newId;
+  };
+
+  // Quick register new client
+  const handleQuickRegister = async () => {
+    if (!newClientData.name.trim() || !newClientData.phone.trim()) {
+      alert('Nombre y teléfono son requeridos');
+      return;
+    }
+
+    try {
+      setSavingClient(true);
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const clientId = generateClientId();
+      
+      const newClient = await create('clients', {
+        clientId,
+        name: newClientData.name.trim(),
+        phone: newClientData.phone.trim(),
+        email: '',
+        notes: '',
+        monthlyPurchases: 0,
+        totalPurchases: 0,
+        lastPurchaseMonth: currentMonth,
+        createdAt: new Date(),
+        registeredBy: user?.uid || null,
+        registeredByName: user?.name || 'Desconocido',
+        registeredAtStoreId: storeId || null,
+        registeredAtStoreName: storeName || 'Desconocida'
+      });
+
+      // Refresh clients list
+      const updatedClients = await getAll('clients');
+      setClients(updatedClients);
+
+      // Auto-select the new client
+      const createdClient = updatedClients.find(c => c.clientId === clientId);
+      if (createdClient) {
+        selectClient(createdClient);
+      }
+
+      setShowClientModal(false);
+      setNewClientData({ name: '', phone: '' });
+    } catch (error) {
+      console.error('Error creating client:', error);
+      alert('Error al registrar cliente');
+    } finally {
+      setSavingClient(false);
     }
   };
 
@@ -121,7 +264,7 @@ export default function Checkout() {
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const promoDiscount = cartWithDiscounts.reduce((sum, item) => sum + item.promoDiscount, 0);
-  const vipDiscount = customerInfo?.isVip ? (subtotal - promoDiscount) * 0.15 : 0;
+  const vipDiscount = customerInfo?.isVip ? (subtotal - promoDiscount) * (VIP_DISCOUNT / 100) : 0;
   const total = subtotal - promoDiscount - vipDiscount;
 
   const addToCart = (product) => {
@@ -160,15 +303,7 @@ export default function Checkout() {
     setCart([]);
     setCustomerInfo(null);
     setCashReceived('');
-  };
-
-  const scanCustomer = () => {
-    setCustomerInfo({
-      id: 'CLT-00001234',
-      name: 'Juan Pérez',
-      isVip: true,
-      points: 1250,
-    });
+    setClientSearch('');
   };
 
   const finalizeSale = async () => {
@@ -177,9 +312,11 @@ export default function Checkout() {
       
       const saleData = {
         storeId: storeId,
-        userId: user?.uid,
+        storeName: storeName || storeConfig?.name || 'Tienda',
+        userId: user?.uid || null,
         userName: user?.name || 'Cajero',
         customerId: customerInfo?.id || 'mostrador',
+        customerClientId: customerInfo?.clientId || null,
         customerName: customerInfo?.name || 'Cliente Mostrador',
         items: cartWithDiscounts.map(item => ({
           productId: item.productId,
@@ -199,13 +336,36 @@ export default function Checkout() {
       
       await createSale(saleData);
       
+      // Update product stock
       for (const item of cart) {
         await updateProductStock(item.productId, item.quantity);
+      }
+
+      // Save purchase to client's subcollection if client selected
+      if (customerInfo?.id && customerInfo.id !== 'mostrador') {
+        await addClientPurchase(customerInfo.id, {
+          storeId: storeId,
+          storeName: storeName || storeConfig?.name || 'Tienda',
+          items: cartWithDiscounts.map(item => ({
+            productId: item.productId,
+            name: item.name,
+            category: item.category,
+            price: item.price,
+            quantity: item.quantity,
+            promoDiscount: item.promoDiscount || 0,
+            finalPrice: item.finalPrice
+          })),
+          subtotal,
+          promoDiscount,
+          vipDiscount,
+          total,
+          paymentMethod,
+          sellerName: user?.name || 'Cajero'
+        });
       }
       
       setShowCheckoutModal(false);
       clearCart();
-      // alert('¡Venta completada exitosamente!');
       
     } catch (error) {
       console.error('Error processing sale:', error);
@@ -308,6 +468,76 @@ export default function Checkout() {
       <section className="col-span-12 lg:col-span-5 xl:col-span-4 bg-white p-6 rounded-xl shadow-lg flex flex-col">
         <h2 className="text-xl font-bold text-gray-800 mb-4">Cuenta del Cliente</h2>
 
+        {/* Client Selection - Quick Access */}
+        <div className="bg-gray-50 p-3 rounded-xl mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <Users size={14} />
+              Cliente
+            </span>
+            <button 
+              onClick={() => setShowClientModal(true)}
+              className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+            >
+              <UserPlus size={12} />
+              Nuevo
+            </button>
+          </div>
+          
+          {customerInfo ? (
+            <div className={`p-3 rounded-lg border-2 ${customerInfo.isVip ? 'bg-yellow-50 border-yellow-300' : 'bg-indigo-50 border-indigo-200'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-gray-800">{customerInfo.name}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs font-mono bg-white px-2 py-0.5 rounded">#{customerInfo.clientId}</span>
+                    {customerInfo.isVip && (
+                      <Badge variant="warning">⭐ VIP -{VIP_DISCOUNT}%</Badge>
+                    )}
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setCustomerInfo(null)}
+                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              <input
+                ref={clientSearchRef}
+                type="text"
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                onKeyDown={handleClientSearch}
+                placeholder="Buscar por ID, nombre o tel..."
+                className="w-full border border-gray-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500"
+              />
+              {showClientResults && clientResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-10 max-h-48 overflow-y-auto">
+                  {clientResults.map(client => (
+                    <button
+                      key={client.id}
+                      onClick={() => selectClient(client)}
+                      className="w-full p-3 text-left hover:bg-gray-50 flex items-center justify-between border-b last:border-b-0"
+                    >
+                      <div>
+                        <p className="font-medium text-gray-800 text-sm">{client.name}</p>
+                        <p className="text-xs text-gray-500">#{client.clientId} • {client.phone}</p>
+                      </div>
+                      {(client.monthlyPurchases || 0) >= VIP_THRESHOLD && (
+                        <Star size={14} className="text-yellow-500" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Cart Items */}
         <div className="flex-1 overflow-y-auto space-y-3 mb-4">
           {cart.length === 0 ? (
@@ -379,8 +609,11 @@ export default function Checkout() {
             </div>
           )}
           {vipDiscount > 0 && (
-            <div className="flex justify-between text-sm text-purple-600">
-              <span>Descuento VIP (-15%)</span>
+            <div className="flex justify-between text-sm text-yellow-600">
+              <span className="flex items-center gap-1">
+                <Star size={12} />
+                Descuento VIP (-{VIP_DISCOUNT}%)
+              </span>
               <span>-{formatCurrency(vipDiscount)}</span>
             </div>
           )}
@@ -409,6 +642,59 @@ export default function Checkout() {
         </div>
       </section>
 
+      {/* Quick Register Client Modal */}
+      <Modal
+        isOpen={showClientModal}
+        onClose={() => setShowClientModal(false)}
+        title="Registrar Cliente Rápido"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={newClientData.name}
+              onChange={(e) => setNewClientData(prev => ({ ...prev, name: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nombre del cliente"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Teléfono <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="tel"
+              value={newClientData.phone}
+              onChange={(e) => setNewClientData(prev => ({ ...prev, phone: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+              placeholder="427-123-4567"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button 
+              type="button" 
+              variant="secondary" 
+              className="flex-1"
+              onClick={() => setShowClientModal(false)}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              className="flex-1" 
+              onClick={handleQuickRegister}
+              disabled={savingClient}
+            >
+              {savingClient ? 'Registrando...' : 'Registrar'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Checkout Modal */}
       <Modal
         isOpen={showCheckoutModal}
@@ -420,46 +706,25 @@ export default function Checkout() {
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-center py-6 rounded-xl mb-6 shadow-lg">
           <p className="text-sm opacity-80">Total a Pagar</p>
           <p className="text-4xl font-extrabold">{formatCurrency(total)}</p>
+          {customerInfo?.isVip && (
+            <p className="text-yellow-300 text-sm mt-1">⭐ Cliente VIP - {VIP_DISCOUNT}% descuento aplicado</p>
+          )}
         </div>
 
         {/* Customer Section */}
-        <div className="mb-6">
-          <h3 className="font-semibold text-gray-700 mb-3">Registrar Cliente (Opcional)</h3>
-          {customerInfo ? (
-            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 p-4 rounded-xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-indigo-800">{customerInfo.name}</p>
-                  <div className="flex items-center gap-2 text-sm mt-1">
-                    <Badge variant="warning">CLIENTE VIP</Badge>
-                    <span className="text-green-600 font-semibold">-15% Descuento</span>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setCustomerInfo(null)}
-                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                  title="Quitar cliente"
-                >
-                  <X size={20} />
-                </button>
+        {customerInfo && (
+          <div className={`mb-6 p-4 rounded-xl border-2 ${customerInfo.isVip ? 'bg-yellow-50 border-yellow-200' : 'bg-indigo-50 border-indigo-200'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-gray-800">{customerInfo.name}</p>
+                <p className="text-sm text-gray-500">#{customerInfo.clientId} • {customerInfo.phone}</p>
               </div>
+              {customerInfo.isVip && (
+                <Badge variant="warning">⭐ VIP</Badge>
+              )}
             </div>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Escanea el QR o código de barras..."
-                className="flex-1 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <button 
-                onClick={scanCustomer}
-                className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
-              >
-                <QrCode size={20} />
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Payment Method */}
         <div className="mb-6">

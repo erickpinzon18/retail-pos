@@ -16,14 +16,20 @@ import {
   Wallet,
   CheckCircle,
   AlertCircle,
-  Clock
+  Clock,
+  Users2,
+  Star,
+  UserPlus,
+  Crown
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getSalesByDateRange, getCashClosesForDate } from '../../api/firestoreService';
+import { getAll, getSalesByDateRange, getCashClosesForDate, getClientMonthlyTotal } from '../../api/firestoreService';
+
+const VIP_THRESHOLD = 2000;
 
 export default function AdvancedReport() {
   const navigate = useNavigate();
@@ -34,6 +40,14 @@ export default function AdvancedReport() {
   const [closesDate, setClosesDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedStore, setSelectedStore] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
+  const [clientStats, setClientStats] = useState({
+    total: 0,
+    vip: 0,
+    newThisMonth: 0,
+    topClients: [],
+    topRegistrars: [],
+    byStore: []
+  });
   
   // Date range
   const [startDate, setStartDate] = useState(() => {
@@ -88,6 +102,65 @@ export default function AdvancedReport() {
       }
       
       setSales(allSales);
+      
+      // Fetch client statistics
+      const clientsData = await getAll('clients');
+      const clientMonthStart = new Date();
+      clientMonthStart.setDate(1);
+      clientMonthStart.setHours(0, 0, 0, 0);
+      
+      const clientsWithTotals = await Promise.all(
+        clientsData.map(async (client) => {
+          try {
+            const monthlyTotal = await getClientMonthlyTotal(client.id);
+            return { ...client, monthlyPurchases: monthlyTotal };
+          } catch {
+            return { ...client, monthlyPurchases: 0 };
+          }
+        })
+      );
+      
+      const vipClients = clientsWithTotals.filter(c => (c.monthlyPurchases || 0) >= VIP_THRESHOLD);
+      const newClients = clientsData.filter(c => {
+        const created = c.createdAt?.toDate ? c.createdAt.toDate() : new Date(c.createdAt);
+        return created >= clientMonthStart;
+      });
+      
+      const topClients = [...clientsWithTotals]
+        .sort((a, b) => (b.monthlyPurchases || 0) - (a.monthlyPurchases || 0))
+        .slice(0, 10);
+      
+      const registrarCounts = {};
+      clientsData.forEach(client => {
+        const name = client.registeredByName || 'Desconocido';
+        if (!registrarCounts[name]) {
+          registrarCounts[name] = { name, count: 0, storeName: client.registeredAtStoreName || 'N/A' };
+        }
+        registrarCounts[name].count += 1;
+      });
+      
+      const topRegistrars = Object.values(registrarCounts).sort((a, b) => b.count - a.count).slice(0, 10);
+      
+      // Group by store
+      const byStore = {};
+      clientsData.forEach(client => {
+        const store = client.registeredAtStoreName || 'Desconocida';
+        if (!byStore[store]) byStore[store] = { name: store, count: 0, vip: 0 };
+        byStore[store].count += 1;
+        if ((clientsWithTotals.find(c => c.id === client.id)?.monthlyPurchases || 0) >= VIP_THRESHOLD) {
+          byStore[store].vip += 1;
+        }
+      });
+      
+      setClientStats({
+        total: clientsData.length,
+        vip: vipClients.length,
+        newThisMonth: newClients.length,
+        topClients,
+        topRegistrars,
+        byStore: Object.values(byStore).sort((a, b) => b.count - a.count)
+      });
+      
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -278,6 +351,7 @@ export default function AdvancedReport() {
     { id: 'sellers', label: 'Vendedores', icon: Users },
     { id: 'stores', label: 'Tiendas', icon: Store },
     { id: 'closes', label: 'Cortes', icon: Wallet },
+    { id: 'clients', label: 'Clientes', icon: Users2 },
   ];
 
   if (loading) {
@@ -773,6 +847,164 @@ export default function AdvancedReport() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Clients Tab */}
+      {activeTab === 'clients' && (
+        <div className="space-y-6">
+          {/* Client Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-2xl shadow-lg text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <Users2 size={20} />
+                <span className="text-white/80 text-sm">Total Clientes</span>
+              </div>
+              <p className="text-3xl font-bold">{clientStats.total}</p>
+            </div>
+            <div className="bg-gradient-to-br from-yellow-500 to-orange-500 p-5 rounded-2xl shadow-lg text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <Star size={20} />
+                <span className="text-white/80 text-sm">Clientes VIP</span>
+              </div>
+              <p className="text-3xl font-bold">{clientStats.vip}</p>
+            </div>
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-5 rounded-2xl shadow-lg text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <UserPlus size={20} />
+                <span className="text-white/80 text-sm">Nuevos Este Mes</span>
+              </div>
+              <p className="text-3xl font-bold">{clientStats.newThisMonth}</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-5 rounded-2xl shadow-lg text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <Crown size={20} />
+                <span className="text-white/80 text-sm">% Clientes VIP</span>
+              </div>
+              <p className="text-3xl font-bold">
+                {clientStats.total > 0 ? Math.round((clientStats.vip / clientStats.total) * 100) : 0}%
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Top Clients */}
+            <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+              <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-yellow-50 to-orange-50">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                  <Crown size={20} className="text-yellow-500" />
+                  Top 10 Mejores Clientes del Mes
+                </h3>
+              </div>
+              <div className="p-5">
+                {clientStats.topClients.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">Sin clientes registrados</p>
+                ) : (
+                  <div className="space-y-3">
+                    {clientStats.topClients.map((client, idx) => (
+                      <div key={client.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                            idx === 1 ? 'bg-gray-100 text-gray-600' :
+                            idx === 2 ? 'bg-amber-100 text-amber-700' :
+                            'bg-gray-50 text-gray-500'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <p className="font-semibold text-gray-800">{client.name}</p>
+                            <p className="text-xs text-gray-400">#{client.clientId} • {client.phone || 'Sin tel'}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">{formatCurrency(client.monthlyPurchases || 0)}</p>
+                          {(client.monthlyPurchases || 0) >= VIP_THRESHOLD && (
+                            <span className="text-xs text-yellow-600">⭐ VIP</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Top Registrars */}
+            <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+              <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                  <UserPlus size={20} className="text-green-500" />
+                  Vendedores que Más Registran Clientes
+                </h3>
+              </div>
+              <div className="p-5">
+                {clientStats.topRegistrars.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">Sin datos</p>
+                ) : (
+                  <div className="space-y-3">
+                    {clientStats.topRegistrars.map((registrar, idx) => (
+                      <div key={registrar.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            idx === 0 ? 'bg-green-100 text-green-700' :
+                            idx === 1 ? 'bg-gray-100 text-gray-600' :
+                            idx === 2 ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-gray-50 text-gray-500'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <p className="font-semibold text-gray-800">{registrar.name}</p>
+                            <p className="text-xs text-gray-400">{registrar.storeName}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-indigo-600 text-lg">{registrar.count}</p>
+                          <p className="text-xs text-gray-400">clientes</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Clients by Store */}
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <Store size={20} className="text-purple-500" />
+                Clientes Registrados por Tienda
+              </h3>
+            </div>
+            <div className="p-5">
+              {clientStats.byStore.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">Sin datos</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {clientStats.byStore.map((store, idx) => (
+                    <div key={store.name} className="bg-gray-50 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="font-semibold text-gray-800">{store.name}</p>
+                        <span className={`text-xs px-2 py-1 rounded-full ${idx === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                          #{idx + 1}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-2xl font-bold text-indigo-600">{store.count}</p>
+                        <p className="text-sm text-gray-500">clientes</p>
+                      </div>
+                      {store.vip > 0 && (
+                        <p className="text-xs text-yellow-600 mt-1">⭐ {store.vip} VIP</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

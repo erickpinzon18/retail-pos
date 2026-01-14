@@ -10,12 +10,18 @@ import {
   ArrowDownRight,
   Calendar,
   Clock,
-  Award
+  Award,
+  Users2,
+  Star,
+  UserPlus,
+  Crown
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getSalesByDateRange } from '../../api/firestoreService';
+import { getAll, getSalesByDateRange, getClientMonthlyTotal } from '../../api/firestoreService';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
+
+const VIP_THRESHOLD = 2000;
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -33,6 +39,14 @@ export default function Dashboard() {
   const [storeStats, setStoreStats] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
   const [topSellers, setTopSellers] = useState([]);
+  const [clientStats, setClientStats] = useState({
+    total: 0,
+    vip: 0,
+    newThisMonth: 0,
+    topClients: [],
+    topRegistrars: [],
+    registrarByStore: []
+  });
 
   useEffect(() => {
     fetchDashboardData();
@@ -160,6 +174,64 @@ export default function Dashboard() {
           .sort((a, b) => b.sales - a.sales)
           .slice(0, 5)
       );
+      
+      // Fetch client statistics
+      const clientsData = await getAll('clients');
+      const clientMonthStart = new Date();
+      clientMonthStart.setDate(1);
+      clientMonthStart.setHours(0, 0, 0, 0);
+      
+      // Calculate client metrics with actual monthly totals
+      const clientsWithTotals = await Promise.all(
+        clientsData.map(async (client) => {
+          try {
+            const monthlyTotal = await getClientMonthlyTotal(client.id);
+            return { ...client, monthlyPurchases: monthlyTotal };
+          } catch {
+            return { ...client, monthlyPurchases: 0 };
+          }
+        })
+      );
+      
+      const vipClients = clientsWithTotals.filter(c => (c.monthlyPurchases || 0) >= VIP_THRESHOLD);
+      const newClients = clientsData.filter(c => {
+        const created = c.createdAt?.toDate ? c.createdAt.toDate() : new Date(c.createdAt);
+        return created >= clientMonthStart;
+      });
+      
+      // Top clients by monthly purchases
+      const topClients = [...clientsWithTotals]
+        .sort((a, b) => (b.monthlyPurchases || 0) - (a.monthlyPurchases || 0))
+        .slice(0, 5);
+      
+      // Top registrars (who registered most clients)
+      const registrarCounts = {};
+      clientsData.forEach(client => {
+        const name = client.registeredByName || 'Desconocido';
+        if (!registrarCounts[name]) {
+          registrarCounts[name] = { 
+            name, 
+            count: 0, 
+            storeName: client.registeredAtStoreName || 'N/A',
+            clients: []
+          };
+        }
+        registrarCounts[name].count += 1;
+        registrarCounts[name].clients.push(client.name);
+      });
+      
+      const topRegistrars = Object.values(registrarCounts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+        
+      setClientStats({
+        total: clientsData.length,
+        vip: vipClients.length,
+        newThisMonth: newClients.length,
+        topClients,
+        topRegistrars,
+        registrarByStore: []
+      });
       
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -537,6 +609,132 @@ export default function Dashboard() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Client Statistics Section */}
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <Users2 size={24} className="text-indigo-600" />
+          Estadísticas de Clientes
+        </h2>
+        
+        {/* Client Stats Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <Users2 size={16} className="text-blue-500" />
+              <span className="text-sm text-gray-500">Total Clientes</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-800">{clientStats.total}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <Star size={16} className="text-yellow-500" />
+              <span className="text-sm text-gray-500">Clientes VIP</span>
+            </div>
+            <p className="text-2xl font-bold text-yellow-600">{clientStats.vip}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <UserPlus size={16} className="text-green-500" />
+              <span className="text-sm text-gray-500">Nuevos Este Mes</span>
+            </div>
+            <p className="text-2xl font-bold text-green-600">{clientStats.newThisMonth}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <Crown size={16} className="text-purple-500" />
+              <span className="text-sm text-gray-500">% VIP</span>
+            </div>
+            <p className="text-2xl font-bold text-purple-600">
+              {clientStats.total > 0 ? Math.round((clientStats.vip / clientStats.total) * 100) : 0}%
+            </p>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Clients */}
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <Crown size={16} className="text-yellow-500" />
+                Mejores Clientes del Mes
+              </h3>
+            </div>
+            <div className="p-4">
+              {clientStats.topClients.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Sin datos</p>
+              ) : (
+                <div className="space-y-3">
+                  {clientStats.topClients.map((client, idx) => (
+                    <div key={client.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                          idx === 1 ? 'bg-gray-100 text-gray-600' :
+                          idx === 2 ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-50 text-gray-500'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <p className="font-medium text-gray-800 text-sm">{client.name}</p>
+                          <p className="text-xs text-gray-400">#{client.clientId}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600 text-sm">{formatCurrency(client.monthlyPurchases || 0)}</p>
+                        {(client.monthlyPurchases || 0) >= VIP_THRESHOLD && (
+                          <span className="text-xs text-yellow-600">⭐ VIP</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Top Client Registrars */}
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <UserPlus size={16} className="text-green-500" />
+                Vendedores que Más Registran Clientes
+              </h3>
+            </div>
+            <div className="p-4">
+              {clientStats.topRegistrars.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Sin datos</p>
+              ) : (
+                <div className="space-y-3">
+                  {clientStats.topRegistrars.map((registrar, idx) => (
+                    <div key={registrar.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          idx === 0 ? 'bg-green-100 text-green-700' :
+                          idx === 1 ? 'bg-gray-100 text-gray-600' :
+                          idx === 2 ? 'bg-emerald-100 text-emerald-700' :
+                          'bg-gray-50 text-gray-500'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <p className="font-medium text-gray-800 text-sm">{registrar.name}</p>
+                          <p className="text-xs text-gray-400">{registrar.storeName}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-indigo-600">{registrar.count}</p>
+                        <p className="text-xs text-gray-400">clientes</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
