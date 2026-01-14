@@ -10,6 +10,7 @@ import Login from './pages/store/Login';
 import Dashboard from './pages/admin/Dashboard';
 import ManageStores from './pages/admin/ManageStores';
 import ManageUsers from './pages/admin/ManageUsers';
+import ManagePromotions from './pages/admin/ManagePromotions';
 import AdvancedReport from './pages/admin/AdvancedReport';
 import GenerateReport from './pages/admin/GenerateReport';
 import Checkout from './pages/store/Checkout';
@@ -84,6 +85,7 @@ export default function Router() {
         <Route path="users" element={<ManageUsers />} />
         <Route path="reports" element={<AdvancedReport />} />
         <Route path="reports/generate" element={<GenerateReport />} />
+        <Route path="promotions" element={<ManagePromotions />} />
       </Route>
 
       {/* Store Routes */}

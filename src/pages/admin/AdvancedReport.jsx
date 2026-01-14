@@ -1,154 +1,601 @@
-import { useState } from 'react';
-import { Download } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Card, { CardTitle } from '../../components/ui/Card';
+import { 
+  Download, 
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  ShoppingBag,
+  Users,
+  Store,
+  Award,
+  BarChart2,
+  FileText,
+  Printer,
+  FileSpreadsheet
+} from 'lucide-react';
 import Button from '../../components/ui/Button';
-import Tabs from '../../components/ui/Tabs';
+import Badge from '../../components/ui/Badge';
+import SalesChart from '../../components/shared/SalesChart';
+import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-
-// Mock data
-const topEmployees = [
-  { name: 'Carlos Mendoza', store: 'Tienda Centro', sales: 85320 },
-  { name: 'Sofía Hernández', store: 'Plaza Mayor', sales: 82150 },
-];
-
-const productivityData = [
-  { name: 'Ana García', sales: 58430, orders: 412, avgTicket: 141.82, itemsPerTicket: 2.1 },
-  { name: 'Juan López', sales: 55120, orders: 398, avgTicket: 138.49, itemsPerTicket: 1.9 },
-];
+import { getAll, getSalesByDateRange } from '../../api/firestoreService';
 
 export default function AdvancedReport() {
-  const [selectedStore, setSelectedStore] = useState('');
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [stores, setStores] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [selectedStore, setSelectedStore] = useState('all');
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  // Date range
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1); // First day of month
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, [startDate, endDate]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const storesData = await getAll('stores');
+      setStores(storesData);
+      
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      
+      let allSales = [];
+      for (const store of storesData) {
+        const storeSales = await getSalesByDateRange(store.id, start, end);
+        allSales = [...allSales, ...storeSales.map(s => ({ ...s, storeName: store.name, storeId: store.id }))];
+      }
+      
+      setSales(allSales);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter sales by selected store
+  const filteredSales = useMemo(() => {
+    if (selectedStore === 'all') return sales;
+    return sales.filter(s => s.storeId === selectedStore);
+  }, [sales, selectedStore]);
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    const totalSales = filteredSales.reduce((sum, s) => sum + (s.total || 0), 0);
+    const transactions = filteredSales.length;
+    
+    // Profit estimate (assuming 35% margin)
+    const profit = totalSales * 0.35;
+    
+    // Payment methods
+    const methods = { cash: 0, card: 0, transfer: 0 };
+    filteredSales.forEach(s => {
+      methods[s.paymentMethod || 'cash'] += s.total || 0;
+    });
+    
+    // Top products
+    const productStats = {};
+    filteredSales.forEach(sale => {
+      (sale.items || []).forEach(item => {
+        const name = item.name || 'Producto';
+        if (!productStats[name]) {
+          productStats[name] = { name, quantity: 0, revenue: 0 };
+        }
+        productStats[name].quantity += item.quantity || 1;
+        productStats[name].revenue += item.finalPrice || (item.price * (item.quantity || 1));
+      });
+    });
+    
+    const topProducts = Object.values(productStats)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+    
+    // Seller stats
+    const sellerStats = {};
+    filteredSales.forEach(sale => {
+      const name = sale.userName || 'Vendedor';
+      if (!sellerStats[name]) {
+        sellerStats[name] = { 
+          name, 
+          storeName: sale.storeName,
+          sales: 0, 
+          transactions: 0,
+          items: 0
+        };
+      }
+      sellerStats[name].sales += sale.total || 0;
+      sellerStats[name].transactions += 1;
+      sellerStats[name].items += (sale.items || []).reduce((sum, i) => sum + (i.quantity || 1), 0);
+    });
+    
+    const topSellers = Object.values(sellerStats)
+      .sort((a, b) => b.sales - a.sales);
+    
+    // Store comparison
+    const storeStats = {};
+    filteredSales.forEach(sale => {
+      const name = sale.storeName;
+      if (!storeStats[name]) {
+        storeStats[name] = { name, sales: 0, transactions: 0 };
+      }
+      storeStats[name].sales += sale.total || 0;
+      storeStats[name].transactions += 1;
+    });
+    
+    const storeComparison = Object.values(storeStats)
+      .sort((a, b) => b.sales - a.sales);
+    
+    // Categories
+    const categories = {};
+    filteredSales.forEach(sale => {
+      (sale.items || []).forEach(item => {
+        const cat = item.category || 'Sin categoría';
+        categories[cat] = (categories[cat] || 0) + (item.finalPrice || item.price * (item.quantity || 1));
+      });
+    });
+    
+    return {
+      totalSales,
+      profit,
+      transactions,
+      avgTicket: transactions > 0 ? totalSales / transactions : 0,
+      methods,
+      topProducts,
+      topSellers,
+      storeComparison,
+      categories: Object.entries(categories).sort((a, b) => b[1] - a[1]).slice(0, 6)
+    };
+  }, [filteredSales]);
+
+  // Daily chart data
+  const chartData = useMemo(() => {
+    const dailyTotals = {};
+    
+    filteredSales.forEach(sale => {
+      const date = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+      const key = date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+      dailyTotals[key] = (dailyTotals[key] || 0) + (sale.total || 0);
+    });
+    
+    const labels = Object.keys(dailyTotals);
+    const values = Object.values(dailyTotals);
+    
+    return { labels, data: [{ label: 'Ventas', values }] };
+  }, [filteredSales]);
+
+  const exportCSV = () => {
+    // Simple CSV export
+    const headers = ['Fecha', 'Tienda', 'Vendedor', 'Método', 'Items', 'Total'];
+    const rows = filteredSales.map(s => {
+      const date = s.date?.toDate ? s.date.toDate() : new Date(s.date);
+      const items = (s.items || []).reduce((sum, i) => sum + (i.quantity || 1), 0);
+      return [
+        date.toLocaleDateString('es-MX'),
+        s.storeName || '',
+        s.userName || '',
+        s.paymentMethod || '',
+        items,
+        s.total || 0
+      ].join(',');
+    });
+    
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reporte_${startDate}_${endDate}.csv`;
+    a.click();
+  };
+
+  const exportExcel = () => {
+    import('xlsx').then(XLSX => {
+      // Prepare data for Excel
+      const data = filteredSales.map(s => {
+        const date = s.date?.toDate ? s.date.toDate() : new Date(s.date);
+        const items = (s.items || []).reduce((sum, i) => sum + (i.quantity || 1), 0);
+        const productNames = (s.items || []).map(i => i.name).join('; ');
+        return {
+          'Fecha': date.toLocaleDateString('es-MX'),
+          'Hora': date.toLocaleTimeString('es-MX'),
+          'Tienda': s.storeName || '',
+          'Vendedor': s.userName || '',
+          'Método de Pago': s.paymentMethod === 'cash' ? 'Efectivo' : s.paymentMethod === 'card' ? 'Tarjeta' : 'Transferencia',
+          'Productos': productNames,
+          'Cantidad': items,
+          'Total': s.total || 0
+        };
+      });
+      
+      // Create worksheet and workbook
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+      
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 12 }, // Fecha
+        { wch: 10 }, // Hora
+        { wch: 15 }, // Tienda
+        { wch: 15 }, // Vendedor
+        { wch: 15 }, // Método
+        { wch: 40 }, // Productos
+        { wch: 10 }, // Cantidad
+        { wch: 12 }, // Total
+      ];
+      
+      // Download file
+      const fileName = `ventas_${selectedStore === 'all' ? 'todas' : 'tienda'}_${startDate}_${endDate}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    });
+  };
 
   const tabs = [
-    {
-      id: 'general',
-      label: 'Reporte General',
-      content: (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card>
-              <p className="text-sm text-gray-500">Ventas Totales</p>
-              <p className="text-2xl font-bold">$1.2M</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-gray-500">Ganancia Neta</p>
-              <p className="text-2xl font-bold">$450K</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-gray-500">Ticket Promedio</p>
-              <p className="text-2xl font-bold">{formatCurrency(138.90)}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-gray-500">Top Producto</p>
-              <p className="text-lg font-bold">Pantalón Mezclilla</p>
-            </Card>
-          </div>
-          <Card>
-            <CardTitle className="mb-4">Top 5 Empleados (Productividad)</CardTitle>
-            <table className="w-full text-sm">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2">Empleado</th>
-                  <th className="px-4 py-2">Tienda</th>
-                  <th className="px-4 py-2">Ventas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topEmployees.map((emp) => (
-                  <tr key={emp.name} className="border-b">
-                    <td className="px-4 py-2 font-medium">{emp.name}</td>
-                    <td className="px-4 py-2">{emp.store}</td>
-                    <td className="px-4 py-2 font-semibold text-green-600">{formatCurrency(emp.sales)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </div>
-      ),
-    },
-    {
-      id: 'tienda',
-      label: 'Por Tienda',
-      content: (
-        <div className="space-y-6">
-          <select
-            className="w-full md:w-1/3 border border-gray-300 rounded-lg p-2"
-            value={selectedStore}
-            onChange={(e) => setSelectedStore(e.target.value)}
-          >
-            <option value="">Selecciona una tienda para ver su reporte</option>
-            <option value="centro">Tienda Centro</option>
-            <option value="plaza">Tienda Plaza Mayor</option>
-          </select>
-          {selectedStore && (
-            <Card>
-              <CardTitle className="mb-4">Reporte de Productividad por Cajero</CardTitle>
-              <p className="text-sm text-gray-500 mb-4">
-                Utiliza estos datos para calcular bonos y evaluar el rendimiento del personal.
-              </p>
-              <table className="w-full text-sm">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2">Cajero</th>
-                    <th className="px-4 py-2">Ventas</th>
-                    <th className="px-4 py-2">Órdenes</th>
-                    <th className="px-4 py-2">Ticket Promedio</th>
-                    <th className="px-4 py-2">Artículos/Ticket</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productivityData.map((emp) => (
-                    <tr key={emp.name} className="border-b">
-                      <td className="px-4 py-2 font-medium">{emp.name}</td>
-                      <td className="px-4 py-2 font-semibold">{formatCurrency(emp.sales)}</td>
-                      <td className="px-4 py-2">{emp.orders}</td>
-                      <td className="px-4 py-2">{formatCurrency(emp.avgTicket)}</td>
-                      <td className="px-4 py-2">{emp.itemsPerTicket}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          )}
-        </div>
-      ),
-    },
-    {
-      id: 'grupo',
-      label: 'Por Grupo de Tiendas',
-      content: (
-        <div>
-          <select className="w-full md:w-1/3 border border-gray-300 rounded-lg p-2">
-            <option>Selecciona un grupo para ver su reporte</option>
-            <option>Tiendas del Bajío</option>
-            <option>Tiendas del Norte</option>
-          </select>
-        </div>
-      ),
-    },
+    { id: 'overview', label: 'Resumen', icon: BarChart2 },
+    { id: 'products', label: 'Productos', icon: ShoppingBag },
+    { id: 'sellers', label: 'Vendedores', icon: Users },
+    { id: 'stores', label: 'Tiendas', icon: Store },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Cargando reportes...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Reportes Avanzados</h1>
-          <p className="text-gray-500 mt-1">Analiza el rendimiento y exporta datos clave de tu negocio.</p>
+          <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
+            <FileText size={32} className="text-indigo-600" />
+            Reportes Avanzados
+          </h1>
+          <p className="text-gray-500 mt-1">Analiza el rendimiento y exporta datos clave.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <input type="date" className="border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500" />
-          <Button icon={<Download size={20} />} onClick={() => navigate('/admin/reports/generate')}>
-            Exportar
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm">
+            <Calendar size={16} className="text-gray-400" />
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="border-0 focus:ring-0 text-sm"
+            />
+            <span className="text-gray-400">-</span>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="border-0 focus:ring-0 text-sm"
+            />
+          </div>
+          <select
+            value={selectedStore}
+            onChange={(e) => setSelectedStore(e.target.value)}
+            className="border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">Todas las tiendas</option>
+            {stores.map(store => (
+              <option key={store.id} value={store.id}>{store.name}</option>
+            ))}
+          </select>
+          <Button icon={<Download size={18} />} onClick={exportCSV} variant="secondary">
+            CSV
+          </Button>
+          <Button icon={<FileSpreadsheet size={18} />} onClick={exportExcel} variant="secondary">
+            Excel
+          </Button>
+          <Button icon={<Printer size={18} />} onClick={() => navigate('/admin/reports/generate')}>
+            Ver PDF
           </Button>
         </div>
       </div>
 
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign size={18} />
+            <span className="text-white/80 text-sm">Ventas Totales</span>
+          </div>
+          <p className="text-2xl font-bold">{formatCurrency(stats.totalSales)}</p>
+        </div>
+        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp size={18} />
+            <span className="text-white/80 text-sm">Ganancia Est.</span>
+          </div>
+          <p className="text-2xl font-bold">{formatCurrency(stats.profit)}</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-4 rounded-2xl text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <ShoppingBag size={18} />
+            <span className="text-white/80 text-sm">Transacciones</span>
+          </div>
+          <p className="text-2xl font-bold">{stats.transactions}</p>
+        </div>
+        <div className="bg-gradient-to-br from-orange-500 to-red-500 p-4 rounded-2xl text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <Users size={18} />
+            <span className="text-white/80 text-sm">Ticket Promedio</span>
+          </div>
+          <p className="text-2xl font-bold">{formatCurrency(stats.avgTicket)}</p>
+        </div>
+      </div>
+
       {/* Tabs */}
-      <Tabs tabs={tabs} defaultTab="general" />
+      <div className="flex gap-2 p-1 bg-gray-200 rounded-xl w-fit">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+              activeTab === tab.id 
+                ? 'bg-white text-indigo-700 shadow-sm' 
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sales Chart */}
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-5">
+            <h3 className="font-bold text-gray-800 mb-4">Ventas por Día</h3>
+            {chartData.labels.length > 0 ? (
+              <SalesChart data={chartData.data} labels={chartData.labels} height="0px" />
+            ) : (
+              <p className="text-center text-gray-400 py-12">Sin datos en el período</p>
+            )}
+          </div>
+
+          {/* Payment Methods */}
+          <div className="bg-white rounded-2xl shadow-md p-5">
+            <h3 className="font-bold text-gray-800 mb-4">Métodos de Pago</h3>
+            <CategoryChart 
+              data={[stats.methods.cash, stats.methods.card, stats.methods.transfer]}
+              labels={['Efectivo', 'Tarjeta', 'Transferencia']}
+            />
+            <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-100">
+              <div className="text-center">
+                <p className="text-xs text-gray-500">Efectivo</p>
+                <p className="font-bold text-green-600 text-sm">{formatCurrency(stats.methods.cash)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-gray-500">Tarjeta</p>
+                <p className="font-bold text-blue-600 text-sm">{formatCurrency(stats.methods.card)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-gray-500">Transfer</p>
+                <p className="font-bold text-yellow-600 text-sm">{formatCurrency(stats.methods.transfer)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Categories */}
+          <div className="bg-white rounded-2xl shadow-md p-5">
+            <h3 className="font-bold text-gray-800 mb-4">Ventas por Categoría</h3>
+            {stats.categories.length > 0 ? (
+              <CategoryChart 
+                data={stats.categories.map(([, v]) => v)}
+                labels={stats.categories.map(([k]) => k)}
+              />
+            ) : (
+              <p className="text-center text-gray-400 py-8">Sin datos</p>
+            )}
+          </div>
+
+          {/* Top 5 Sellers */}
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-5">
+            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Award size={20} className="text-yellow-500" />
+              Top 5 Vendedores
+            </h3>
+            {stats.topSellers.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">Sin datos</p>
+            ) : (
+              <div className="space-y-3">
+                {stats.topSellers.slice(0, 5).map((seller, idx) => (
+                  <div key={seller.name} className="flex items-center gap-3">
+                    <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
+                      idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                      idx === 1 ? 'bg-gray-100 text-gray-600' :
+                      idx === 2 ? 'bg-amber-100 text-amber-700' :
+                      'bg-gray-50 text-gray-500'
+                    }`}>
+                      {idx + 1}
+                    </span>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-800">{seller.name}</p>
+                      <p className="text-xs text-gray-500">{seller.storeName} • {seller.transactions} ventas</p>
+                    </div>
+                    <p className="font-bold text-green-600">{formatCurrency(seller.sales)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'products' && (
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+          <div className="p-5 border-b border-gray-100">
+            <h3 className="font-bold text-gray-800">Productos Vendidos</h3>
+          </div>
+          {stats.topProducts.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">Sin datos de productos</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="px-5 py-3 text-left">#</th>
+                    <th className="px-5 py-3 text-left">Producto</th>
+                    <th className="px-5 py-3 text-right">Cantidad</th>
+                    <th className="px-5 py-3 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {stats.topProducts.map((product, idx) => (
+                    <tr key={product.name} className="hover:bg-gray-50">
+                      <td className="px-5 py-4">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                          idx === 1 ? 'bg-gray-100 text-gray-600' :
+                          idx === 2 ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-50 text-gray-500'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-medium text-gray-800">{product.name}</td>
+                      <td className="px-5 py-4 text-right text-gray-600">{product.quantity} uds</td>
+                      <td className="px-5 py-4 text-right font-bold text-green-600">{formatCurrency(product.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'sellers' && (
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+          <div className="p-5 border-b border-gray-100">
+            <h3 className="font-bold text-gray-800">Productividad por Vendedor</h3>
+          </div>
+          {stats.topSellers.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">Sin datos de vendedores</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="px-5 py-3 text-left">#</th>
+                    <th className="px-5 py-3 text-left">Vendedor</th>
+                    <th className="px-5 py-3 text-left">Tienda</th>
+                    <th className="px-5 py-3 text-right">Ventas</th>
+                    <th className="px-5 py-3 text-right">Transacciones</th>
+                    <th className="px-5 py-3 text-right">Ticket Prom.</th>
+                    <th className="px-5 py-3 text-right">Artículos</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {stats.topSellers.map((seller, idx) => (
+                    <tr key={seller.name} className="hover:bg-gray-50">
+                      <td className="px-5 py-4">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                          idx === 1 ? 'bg-gray-100 text-gray-600' :
+                          idx === 2 ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-50 text-gray-500'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-medium text-gray-800">{seller.name}</td>
+                      <td className="px-5 py-4 text-gray-600">{seller.storeName}</td>
+                      <td className="px-5 py-4 text-right font-bold text-green-600">{formatCurrency(seller.sales)}</td>
+                      <td className="px-5 py-4 text-right text-gray-600">{seller.transactions}</td>
+                      <td className="px-5 py-4 text-right text-gray-600">
+                        {formatCurrency(seller.transactions > 0 ? seller.sales / seller.transactions : 0)}
+                      </td>
+                      <td className="px-5 py-4 text-right text-gray-600">{seller.items}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'stores' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {stats.storeComparison.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-md p-8 text-center text-gray-400 lg:col-span-2">
+              Sin datos de tiendas
+            </div>
+          ) : (
+            <>
+              {stats.storeComparison.map((store, idx) => {
+                const maxSales = stats.storeComparison[0]?.sales || 1;
+                const percentage = (store.sales / maxSales) * 100;
+                
+                return (
+                  <div key={store.name} className="bg-white rounded-2xl shadow-md p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                        idx === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white' :
+                        idx === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-white' :
+                        idx === 2 ? 'bg-gradient-to-br from-amber-500 to-amber-600 text-white' :
+                        'bg-gray-200 text-gray-600'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-gray-800">{store.name}</h3>
+                        <p className="text-xs text-gray-500">{store.transactions} transacciones</p>
+                      </div>
+                      {idx === 0 && <Badge variant="success">Top</Badge>}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="bg-green-50 p-3 rounded-xl">
+                        <p className="text-xs text-green-600">Ventas</p>
+                        <p className="text-lg font-bold text-green-700">{formatCurrency(store.sales)}</p>
+                      </div>
+                      <div className="bg-blue-50 p-3 rounded-xl">
+                        <p className="text-xs text-blue-600">Ticket Prom.</p>
+                        <p className="text-lg font-bold text-blue-700">
+                          {formatCurrency(store.transactions > 0 ? store.sales / store.transactions : 0)}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${
+                          idx === 0 ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
+                          idx === 1 ? 'bg-gradient-to-r from-blue-400 to-indigo-500' :
+                          'bg-gradient-to-r from-purple-400 to-pink-500'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -101,7 +101,7 @@ export default function Login() {
 
       {/* Footer */}
       <footer className="mt-10 text-center text-sm text-gray-500">
-        <p>© 2024 Retail POS. Todos los derechos reservados.</p>
+        <p>© {new Date().getFullYear()} Retail POS by <a href="https://uphy.mx" target="_blank" rel="noopener noreferrer" className="font-semibold hover:text-indigo-600 transition-colors">uphy.mx</a>. Todos los derechos reservados.</p>
       </footer>
     </div>
   );

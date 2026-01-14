@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   Grid3X3, 
@@ -11,10 +11,21 @@ import {
   Bell,
   X,
   Clock,
-  Store
+  Store,
+  DollarSign,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useStore } from '../../context/StoreContext';
+import { getTodayCashCloses, getSalesByStore } from '../../api/firestoreService';
+
+// Same rules as StoreSales
+const SCHEDULED_CLOSES = [
+  { id: 'morning', name: 'Corte Mañana', hour: 12, label: '12:00 PM' },
+  { id: 'afternoon', name: 'Corte Tarde', hour: 16, label: '4:00 PM' },
+  { id: 'evening', name: 'Corte Noche', hour: 20, label: '8:00 PM' },
+];
+const CASH_LIMIT = 2000;
 
 const generalItems = [
   { to: '/store', icon: Grid3X3, label: 'Punto de Venta', end: true },
@@ -29,21 +40,102 @@ const managementItems = [
 
 export default function StoreSidebar() {
   const { user, logout } = useAuth();
-  const { storeName } = useStore();
+  const { storeId, storeName } = useStore();
   const navigate = useNavigate();
   
-  // Notification system state
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: 'warning', title: 'Corte de caja', message: '12:00 PM', icon: Clock },
-  ]);
+  const [cashCloses, setCashCloses] = useState([]);
+  const [currentCash, setCurrentCash] = useState(0);
+  const [dismissedAlerts, setDismissedAlerts] = useState([]);
+
+  // Fetch cash closes and sales on mount
+  useEffect(() => {
+    const fetchAlertData = async () => {
+      if (!storeId) return;
+      
+      try {
+        const [closes, sales] = await Promise.all([
+          getTodayCashCloses(storeId),
+          getSalesByStore(storeId)
+        ]);
+        
+        // Filter today's sales
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const todaySales = sales.filter(sale => {
+          const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+          return saleDate >= today;
+        });
+        
+        // Calculate current cash
+        const totalCash = todaySales
+          .filter(s => s.paymentMethod === 'cash')
+          .reduce((sum, s) => sum + (s.total || 0), 0);
+        
+        const closedCash = closes.reduce((sum, c) => sum + (c.cashAmount || 0), 0);
+        
+        setCashCloses(closes);
+        setCurrentCash(totalCash - closedCash);
+      } catch (error) {
+        console.error('Error fetching alert data:', error);
+      }
+    };
+    
+    fetchAlertData();
+    
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchAlertData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [storeId]);
+
+  // Generate alerts based on rules
+  const alerts = useMemo(() => {
+    const result = [];
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const completedTypes = cashCloses.map(c => c.closeType);
+    
+    // Check scheduled closes (30 min grace period)
+    SCHEDULED_CLOSES.forEach(schedule => {
+      const gracePeriodEnd = schedule.hour * 60 + 30;
+      if (currentMinutes >= gracePeriodEnd && !completedTypes.includes(schedule.id)) {
+        result.push({
+          id: schedule.id,
+          type: 'warning',
+          title: 'Corte pendiente',
+          message: `${schedule.name} (${schedule.label})`,
+          icon: Clock,
+          link: '/store/sales'
+        });
+      }
+    });
+    
+    // Check cash limit
+    if (currentCash >= CASH_LIMIT) {
+      result.push({
+        id: 'cashLimit',
+        type: 'danger',
+        title: 'Límite de efectivo',
+        message: `$${currentCash.toFixed(0)} en caja`,
+        icon: DollarSign,
+        link: '/store/sales'
+      });
+    }
+    
+    return result.filter(a => !dismissedAlerts.includes(a.id));
+  }, [cashCloses, currentCash, dismissedAlerts]);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  const dismissNotification = (id) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const dismissAlert = (id) => {
+    setDismissedAlerts(prev => [...prev, id]);
+  };
+
+  const handleAlertClick = (link) => {
+    navigate(link);
   };
 
   return (
@@ -85,30 +177,34 @@ export default function StoreSidebar() {
         )}
       </div>
 
-      {/* Notifications Section */}
-      {notifications.length > 0 && (
+      {/* Alerts Section */}
+      {alerts.length > 0 && (
         <div className="px-3 py-2 border-b border-gray-100">
           <div className="flex items-center gap-2 px-2 mb-2">
-            <Bell size={14} className="text-gray-400" />
-            <span className="text-xs font-semibold text-gray-400 uppercase">Alertas</span>
+            <AlertTriangle size={14} className="text-yellow-500" />
+            <span className="text-xs font-semibold text-gray-500 uppercase">Alertas</span>
+            <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold">
+              {alerts.length}
+            </span>
           </div>
           <div className="space-y-2">
-            {notifications.map((notif) => (
+            {alerts.map((alert) => (
               <div 
-                key={notif.id}
-                className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
-                  notif.type === 'warning' 
-                    ? 'bg-yellow-50 text-yellow-800' 
-                    : 'bg-red-50 text-red-800'
+                key={alert.id}
+                onClick={() => handleAlertClick(alert.link)}
+                className={`flex items-center gap-2 p-2.5 rounded-xl text-xs cursor-pointer transition ${
+                  alert.type === 'warning' 
+                    ? 'bg-yellow-50 text-yellow-800 hover:bg-yellow-100' 
+                    : 'bg-red-50 text-red-800 hover:bg-red-100'
                 }`}
               >
-                <notif.icon size={14} className="flex-shrink-0" />
+                <alert.icon size={16} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold truncate">{notif.title}</p>
-                  <p className="text-xs opacity-75">{notif.message}</p>
+                  <p className="font-bold truncate">{alert.title}</p>
+                  <p className="text-xs opacity-80">{alert.message}</p>
                 </div>
                 <button 
-                  onClick={() => dismissNotification(notif.id)}
+                  onClick={(e) => { e.stopPropagation(); dismissAlert(alert.id); }}
                   className="p-1 hover:bg-white/50 rounded transition flex-shrink-0"
                 >
                   <X size={12} />
