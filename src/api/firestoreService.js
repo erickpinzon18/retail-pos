@@ -357,3 +357,17 @@ export const getCashCloseHistory = async (storeId, days = 7) => {
   
   return history;
 };
+
+/**
+ * Get cash closes for a specific date
+ */
+export const getCashClosesForDate = async (storeId, date) => {
+  const dateString = typeof date === 'string' ? date : getDateString(date);
+  const docRef = doc(db, 'stores', storeId, 'cashCloses', dateString);
+  const docSnap = await getDoc(docRef);
+  
+  if (docSnap.exists()) {
+    return docSnap.data().closes || [];
+  }
+  return [];
+};

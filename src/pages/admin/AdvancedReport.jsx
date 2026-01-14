@@ -12,20 +12,26 @@ import {
   BarChart2,
   FileText,
   Printer,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Wallet,
+  CheckCircle,
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getSalesByDateRange } from '../../api/firestoreService';
+import { getAll, getSalesByDateRange, getCashClosesForDate } from '../../api/firestoreService';
 
 export default function AdvancedReport() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stores, setStores] = useState([]);
   const [sales, setSales] = useState([]);
+  const [cashCloses, setCashCloses] = useState([]);
+  const [closesDate, setClosesDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedStore, setSelectedStore] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -42,6 +48,27 @@ export default function AdvancedReport() {
   useEffect(() => {
     fetchData();
   }, [startDate, endDate]);
+
+  useEffect(() => {
+    if (stores.length > 0) {
+      fetchCashCloses();
+    }
+  }, [stores, closesDate]);
+
+  const fetchCashCloses = async () => {
+    try {
+      const allCloses = [];
+      for (const store of stores) {
+        const closes = await getCashClosesForDate(store.id, closesDate);
+        closes.forEach(close => {
+          allCloses.push({ ...close, storeName: store.name, storeId: store.id });
+        });
+      }
+      setCashCloses(allCloses);
+    } catch (error) {
+      console.error('Error fetching cash closes:', error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -250,6 +277,7 @@ export default function AdvancedReport() {
     { id: 'products', label: 'Productos', icon: ShoppingBag },
     { id: 'sellers', label: 'Vendedores', icon: Users },
     { id: 'stores', label: 'Tiendas', icon: Store },
+    { id: 'closes', label: 'Cortes', icon: Wallet },
   ];
 
   if (loading) {
@@ -594,6 +622,158 @@ export default function AdvancedReport() {
               })}
             </>
           )}
+        </div>
+      )}
+
+      {activeTab === 'closes' && (
+        <div className="space-y-6">
+          {/* Date Selector */}
+          <div className="bg-white rounded-2xl shadow-md p-5">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+              <div>
+                <h3 className="font-bold text-gray-800 text-lg">Cortes de Caja del Día</h3>
+                <p className="text-sm text-gray-500">Visualiza los cortes realizados por tienda</p>
+              </div>
+              <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-xl">
+                <Calendar size={16} className="text-gray-400" />
+                <input 
+                  type="date" 
+                  value={closesDate}
+                  onChange={(e) => setClosesDate(e.target.value)}
+                  className="bg-transparent border-none focus:ring-0 text-sm font-medium text-gray-700"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Summary */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet size={18} />
+                <span className="text-white/80 text-sm">Total Cortes</span>
+              </div>
+              <p className="text-2xl font-bold">{cashCloses.length}</p>
+            </div>
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign size={18} />
+                <span className="text-white/80 text-sm">Efectivo Total</span>
+              </div>
+              <p className="text-2xl font-bold">{formatCurrency(cashCloses.reduce((sum, c) => sum + (c.cashAmount || 0), 0))}</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-4 rounded-2xl text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp size={18} />
+                <span className="text-white/80 text-sm">Ventas Reportadas</span>
+              </div>
+              <p className="text-2xl font-bold">{formatCurrency(cashCloses.reduce((sum, c) => sum + (c.totalSales || 0), 0))}</p>
+            </div>
+            <div className="bg-gradient-to-br from-orange-500 to-red-500 p-4 rounded-2xl text-white">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock size={18} />
+                <span className="text-white/80 text-sm">A Destiempo</span>
+              </div>
+              <p className="text-2xl font-bold">
+                {cashCloses.filter(close => {
+                  const closeTypeSchedule = { 'morning': 12, 'afternoon': 16, 'evening': 20 };
+                  const scheduledHour = closeTypeSchedule[close.closeType];
+                  if (!scheduledHour) return false;
+                  const closeTime = close.createdAt?.toDate ? close.createdAt.toDate() : new Date(close.createdAt);
+                  const closeMinutes = closeTime.getHours() * 60 + closeTime.getMinutes();
+                  return Math.abs(closeMinutes - scheduledHour * 60) > 30;
+                }).length}
+              </p>
+            </div>
+          </div>
+
+          {/* Closes by Store */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {stores.map(store => {
+              const storeCloses = cashCloses.filter(c => c.storeId === store.id);
+              
+              return (
+                <div key={store.id} className="bg-white rounded-2xl shadow-md overflow-hidden">
+                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <Store size={20} className="text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">{store.name}</h3>
+                        <p className="text-white/70 text-xs">{storeCloses.length} cortes</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4">
+                    {storeCloses.length === 0 ? (
+                      <div className="text-center py-6">
+                        <Wallet size={32} className="mx-auto mb-2 text-gray-300" />
+                        <p className="text-gray-400 text-sm">Sin cortes este día</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {storeCloses.map((close, idx) => {
+                          const closeTime = close.createdAt?.toDate ? close.createdAt.toDate() : new Date(close.createdAt);
+                          
+                          const closeTypeNames = {
+                            'morning': { name: 'Corte Mañana', scheduledHour: 12 },
+                            'afternoon': { name: 'Corte Tarde', scheduledHour: 16 },
+                            'evening': { name: 'Corte Noche', scheduledHour: 20 },
+                            'manual': { name: 'Corte Manual', scheduledHour: null }
+                          };
+                          
+                          const closeTypeInfo = closeTypeNames[close.closeType] || { name: close.closeType || 'Corte', scheduledHour: null };
+                          
+                          let isOnTime = true;
+                          if (closeTypeInfo.scheduledHour !== null) {
+                            const closeMinutes = closeTime.getHours() * 60 + closeTime.getMinutes();
+                            const scheduledMinutes = closeTypeInfo.scheduledHour * 60;
+                            isOnTime = Math.abs(closeMinutes - scheduledMinutes) <= 30;
+                          }
+                          
+                          return (
+                            <div key={close.id || idx} className="p-3 bg-gray-50 rounded-xl">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {isOnTime ? (
+                                    <CheckCircle size={14} className="text-green-500" />
+                                  ) : (
+                                    <AlertCircle size={14} className="text-orange-500" />
+                                  )}
+                                  <span className="font-medium text-gray-800 text-sm">{closeTypeInfo.name}</span>
+                                  {!isOnTime && (
+                                    <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">A destiempo</span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-gray-400">
+                                  {closeTime.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <p className="text-gray-500">Efectivo</p>
+                                  <p className="font-bold text-green-600">{formatCurrency(close.cashAmount || 0)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Ventas</p>
+                                  <p className="font-bold text-gray-700">{formatCurrency(close.totalSales || 0)}</p>
+                                </div>
+                              </div>
+                              {close.userName && (
+                                <p className="text-xs text-gray-400 mt-1">Por: {close.userName}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

@@ -14,7 +14,10 @@ import {
   Banknote,
   ArrowRightLeft,
   BarChart2,
-  Eye
+  Eye,
+  Wallet,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -22,7 +25,7 @@ import Badge from '../../components/ui/Badge';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getById, getSalesByDateRange, update } from '../../api/firestoreService';
+import { getAll, getById, getSalesByDateRange, update, getCashClosesForDate } from '../../api/firestoreService';
 
 export default function ManageStores() {
   const [stores, setStores] = useState([]);
@@ -165,6 +168,8 @@ function StoreDetailView({ store, onBack, onUpdate }) {
   const [storeData, setStoreData] = useState(store);
   const [sales, setSales] = useState([]);
   const [users, setUsers] = useState([]);
+  const [cashCloses, setCashCloses] = useState([]);
+  const [closesDate, setClosesDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('stats');
   const [showEditModal, setShowEditModal] = useState(false);
@@ -179,6 +184,19 @@ function StoreDetailView({ store, onBack, onUpdate }) {
   useEffect(() => {
     fetchStoreDetails();
   }, [store.id]);
+
+  useEffect(() => {
+    fetchCashCloses();
+  }, [store.id, closesDate]);
+
+  const fetchCashCloses = async () => {
+    try {
+      const closes = await getCashClosesForDate(store.id, closesDate);
+      setCashCloses(closes);
+    } catch (error) {
+      console.error('Error fetching cash closes:', error);
+    }
+  };
 
   const fetchStoreDetails = async () => {
     try {
@@ -467,7 +485,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
             </div>
           </div>
 
-          {/* Row 2: Categories + Top Products */}
+          {/* Row 2: Categories + Top Products + Cash Closes */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Categories */}
             <div className="bg-white rounded-2xl shadow-md p-5">
@@ -482,47 +500,108 @@ function StoreDetailView({ store, onBack, onUpdate }) {
               )}
             </div>
 
-            {/* Top Products - Now inline */}
-            <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-5">
-              <h3 className="font-bold text-gray-800 mb-4">Top 5 Productos Más Vendidos</h3>
+            {/* Top Products */}
+            <div className="bg-white rounded-2xl shadow-md p-5">
+              <h3 className="font-bold text-gray-800 mb-4">Top 5 Productos</h3>
               {stats.topProducts.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">Sin datos de productos</p>
+                <p className="text-gray-400 text-center py-8">Sin datos</p>
               ) : (
-                <div className="space-y-3">
-                  {stats.topProducts.map((product, idx) => {
-                    const maxRevenue = stats.topProducts[0]?.revenue || 1;
-                    const percentage = (product.revenue / maxRevenue) * 100;
+                <div className="space-y-2">
+                  {stats.topProducts.map((product, idx) => (
+                    <div key={product.name} className="flex items-center gap-2">
+                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
+                        idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                        idx === 1 ? 'bg-gray-100 text-gray-600' :
+                        idx === 2 ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-50 text-gray-500'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-800 text-sm truncate">{product.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600 text-sm">{formatCurrency(product.revenue)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Cash Closes */}
+            <div className="bg-white rounded-2xl shadow-md p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-800">Cortes de Caja</h3>
+                <input
+                  type="date"
+                  value={closesDate}
+                  onChange={(e) => setClosesDate(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              {cashCloses.length === 0 ? (
+                <div className="text-center py-8">
+                  <Wallet size={32} className="mx-auto mb-2 text-gray-300" />
+                  <p className="text-gray-400 text-sm">Sin cortes este día</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {cashCloses.map((close, idx) => {
+                    const closeTime = close.createdAt?.toDate ? close.createdAt.toDate() : new Date(close.createdAt);
+                    
+                    // Translate close types to Spanish
+                    const closeTypeNames = {
+                      'morning': { name: 'Corte Mañana', scheduledHour: 12 },
+                      'afternoon': { name: 'Corte Tarde', scheduledHour: 16 },
+                      'evening': { name: 'Corte Noche', scheduledHour: 20 },
+                      'manual': { name: 'Corte Manual', scheduledHour: null }
+                    };
+                    
+                    const closeTypeInfo = closeTypeNames[close.closeType] || { name: close.closeType || 'Corte', scheduledHour: null };
+                    
+                    // Check if on time (30 min margin)
+                    let isOnTime = true;
+                    if (closeTypeInfo.scheduledHour !== null) {
+                      const closeHour = closeTime.getHours();
+                      const closeMinutes = closeTime.getMinutes();
+                      const totalMinutes = closeHour * 60 + closeMinutes;
+                      const scheduledMinutes = closeTypeInfo.scheduledHour * 60;
+                      const diffMinutes = Math.abs(totalMinutes - scheduledMinutes);
+                      isOnTime = diffMinutes <= 30;
+                    }
                     
                     return (
-                      <div key={product.name}>
-                        <div className="flex items-center gap-3 mb-1">
-                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold ${
-                            idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                            idx === 1 ? 'bg-gray-100 text-gray-600' :
-                            idx === 2 ? 'bg-amber-100 text-amber-700' :
-                            'bg-gray-50 text-gray-500'
-                          }`}>
-                            {idx + 1}
+                      <div key={close.id || idx} className="p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            {isOnTime ? (
+                              <CheckCircle size={14} className="text-green-500" />
+                            ) : (
+                              <AlertCircle size={14} className="text-orange-500" />
+                            )}
+                            <span className="font-medium text-gray-800 text-sm">{closeTypeInfo.name}</span>
+                            {!isOnTime && (
+                              <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">A destiempo</span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400">
+                            {closeTime.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                           </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-800 text-sm truncate">{product.name}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+                          <div>
+                            <p className="text-gray-500">Efectivo</p>
+                            <p className="font-bold text-green-600">{formatCurrency(close.cashAmount || 0)}</p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-gray-800 text-sm">{formatCurrency(product.revenue)}</p>
-                            <p className="text-xs text-gray-400">{product.quantity} uds</p>
+                          <div>
+                            <p className="text-gray-500">Ventas</p>
+                            <p className="font-bold text-gray-700">{formatCurrency(close.totalSales || 0)}</p>
                           </div>
                         </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-10">
-                          <div 
-                            className={`h-full rounded-full ${
-                              idx === 0 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
-                              idx === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-400' :
-                              idx === 2 ? 'bg-gradient-to-r from-amber-400 to-amber-500' :
-                              'bg-gradient-to-r from-indigo-300 to-indigo-400'
-                            }`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
+                        {close.userName && (
+                          <p className="text-xs text-gray-400 mt-1">Por: {close.userName}</p>
+                        )}
                       </div>
                     );
                   })}
