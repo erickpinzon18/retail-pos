@@ -14,10 +14,11 @@ import {
   Users2,
   Star,
   UserPlus,
-  Crown
+  Crown,
+  PackageOpen
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getSalesByDateRange, getClientMonthlyTotal } from '../../api/firestoreService';
+import { getAll, getSalesByDateRange, getClientMonthlyTotal, getApartados } from '../../api/firestoreService';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 
@@ -46,6 +47,15 @@ export default function Dashboard() {
     topClients: [],
     topRegistrars: [],
     registrarByStore: []
+  });
+  const [apartadoStats, setApartadoStats] = useState({
+    total: 0,
+    active: 0,
+    completed: 0,
+    expired: 0,
+    totalPending: 0,
+    totalCollected: 0,
+    byStore: []
   });
 
   useEffect(() => {
@@ -231,6 +241,46 @@ export default function Dashboard() {
         topClients,
         topRegistrars,
         registrarByStore: []
+      });
+      
+      // Fetch apartados from all stores
+      let allApartados = [];
+      const apartadosByStore = [];
+      
+      for (const store of storesData) {
+        try {
+          const storeApartados = await getApartados(store.id);
+          allApartados = [...allApartados, ...storeApartados.map(a => ({ ...a, storeName: store.name }))];
+          
+          const active = storeApartados.filter(a => a.status === 'active');
+          const completed = storeApartados.filter(a => a.status === 'completed');
+          
+          apartadosByStore.push({
+            storeId: store.id,
+            storeName: store.name,
+            total: storeApartados.length,
+            active: active.length,
+            completed: completed.length,
+            pending: active.reduce((sum, a) => sum + (a.remainingBalance || 0), 0),
+            collected: storeApartados.reduce((sum, a) => sum + (a.depositPaid || 0), 0)
+          });
+        } catch (e) {
+          console.error(`Error fetching apartados for store ${store.name}:`, e);
+        }
+      }
+      
+      const activeApartados = allApartados.filter(a => a.status === 'active');
+      const completedApartados = allApartados.filter(a => a.status === 'completed');
+      const expiredApartados = allApartados.filter(a => a.status === 'expired');
+      
+      setApartadoStats({
+        total: allApartados.length,
+        active: activeApartados.length,
+        completed: completedApartados.length,
+        expired: expiredApartados.length,
+        totalPending: activeApartados.reduce((sum, a) => sum + (a.remainingBalance || 0), 0),
+        totalCollected: allApartados.reduce((sum, a) => sum + (a.depositPaid || 0), 0),
+        byStore: apartadosByStore.sort((a, b) => b.pending - a.pending)
       });
       
     } catch (error) {
@@ -734,6 +784,99 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Apartados Section */}
+      <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-1 shadow-lg">
+        <div className="bg-white rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl">
+              <PackageOpen size={24} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Apartados</h2>
+              <p className="text-sm text-gray-500">Resumen de todos los apartados</p>
+            </div>
+          </div>
+
+          {/* Apartados Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
+              <p className="text-sm text-orange-600">Total</p>
+              <p className="text-2xl font-bold text-gray-800">{apartadoStats.total}</p>
+            </div>
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+              <div className="flex items-center gap-1">
+                <Clock size={14} className="text-blue-500" />
+                <p className="text-sm text-blue-600">Activos</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-800">{apartadoStats.active}</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+              <p className="text-sm text-green-600">Completados</p>
+              <p className="text-2xl font-bold text-gray-800">{apartadoStats.completed}</p>
+            </div>
+            <div className="bg-red-50 p-4 rounded-xl border border-red-200">
+              <p className="text-sm text-red-600">Vencidos</p>
+              <p className="text-2xl font-bold text-gray-800">{apartadoStats.expired}</p>
+            </div>
+            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+              <p className="text-sm text-emerald-600">Cobrado</p>
+              <p className="text-2xl font-bold text-emerald-700">{formatCurrency(apartadoStats.totalCollected)}</p>
+            </div>
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+              <p className="text-sm text-amber-600">Por Cobrar</p>
+              <p className="text-2xl font-bold text-amber-700">{formatCurrency(apartadoStats.totalPending)}</p>
+            </div>
+          </div>
+
+          {/* Apartados by Store */}
+          {apartadoStats.byStore.length > 0 && (
+            <div>
+              <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <Store size={16} /> Apartados por Tienda
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="text-left px-4 py-2 rounded-l-lg">Tienda</th>
+                      <th className="px-4 py-2">Total</th>
+                      <th className="px-4 py-2">Activos</th>
+                      <th className="px-4 py-2">Completados</th>
+                      <th className="px-4 py-2">Por Cobrar</th>
+                      <th className="px-4 py-2 rounded-r-lg">Cobrado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {apartadoStats.byStore.map(store => (
+                      <tr key={store.storeId} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-800">{store.storeName}</td>
+                        <td className="px-4 py-3 text-center">{store.total}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                            {store.active}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            {store.completed}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-orange-600">
+                          {formatCurrency(store.pending)}
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-green-600">
+                          {formatCurrency(store.collected)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

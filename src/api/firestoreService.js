@@ -428,3 +428,253 @@ export const getClientMonthlyTotal = async (clientId) => {
   return purchases.reduce((sum, p) => sum + (p.total || 0), 0);
 };
 
+// ============================================
+// Apartados (Layaway) Functions - Subcollection: stores/{storeId}/apartados
+// ============================================
+
+const APARTADO_DAYS_LIMIT = 15;
+const APARTADO_MIN_DEPOSIT_PERCENT = 10;
+
+/**
+ * Get next sequential apartado number for a store
+ */
+export const getNextApartadoNumber = async (storeId) => {
+  const apartadosRef = collection(db, 'stores', storeId, 'apartados');
+  const snapshot = await getDocs(apartadosRef);
+  const count = snapshot.size + 1;
+  return `APT-${count.toString().padStart(4, '0')}`;
+};
+
+/**
+ * Create a new apartado
+ */
+export const createApartado = async (storeId, data) => {
+  const apartadoNumber = await getNextApartadoNumber(storeId);
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + APARTADO_DAYS_LIMIT);
+  
+  const apartadoData = {
+    apartadoNumber,
+    status: 'active', // active, completed, cancelled, expired
+    
+    // Client info
+    clientId: data.clientId,
+    clientClientId: data.clientClientId,
+    clientName: data.clientName,
+    clientPhone: data.clientPhone || '',
+    
+    // Products
+    items: data.items || [],
+    
+    // Financials
+    total: data.total,
+    depositRequired: Math.ceil(data.total * (APARTADO_MIN_DEPOSIT_PERCENT / 100)),
+    depositPaid: data.depositPaid || 0,
+    remainingBalance: data.total - (data.depositPaid || 0),
+    
+    // Payments history
+    payments: data.depositPaid > 0 ? [{
+      amount: data.depositPaid,
+      date: Timestamp.now(),
+      paymentMethod: data.paymentMethod || 'cash',
+      receivedBy: data.createdBy,
+      receivedByName: data.createdByName
+    }] : [],
+    
+    // Dates
+    createdAt: Timestamp.now(),
+    dueDate: Timestamp.fromDate(dueDate),
+    completedAt: null,
+    
+    // Tracking
+    createdBy: data.createdBy,
+    createdByName: data.createdByName,
+    storeId: storeId,
+    storeName: data.storeName || '',
+    
+    notes: data.notes || ''
+  };
+  
+  const apartadosRef = collection(db, 'stores', storeId, 'apartados');
+  const docRef = await addDoc(apartadosRef, apartadoData);
+  
+  // If deposit was paid, create a sale record for cash tracking
+  if (data.depositPaid > 0) {
+    await createSale({
+      storeId: storeId,
+      items: [{
+        name: `Anticipo Apartado ${apartadoNumber}`,
+        price: data.depositPaid,
+        quantity: 1,
+        category: 'Apartado'
+      }],
+      total: data.depositPaid,
+      paymentMethod: data.paymentMethod || 'cash',
+      userId: data.createdBy,
+      userName: data.createdByName,
+      customerName: data.clientName,
+      type: 'apartado_deposit',
+      apartadoId: docRef.id,
+      apartadoNumber: apartadoNumber
+    });
+  }
+  
+  return { id: docRef.id, ...apartadoData };
+};
+
+/**
+ * Get all apartados for a store
+ */
+export const getApartados = async (storeId) => {
+  const apartadosRef = collection(db, 'stores', storeId, 'apartados');
+  const q = query(apartadosRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+/**
+ * Get apartados by status
+ */
+export const getApartadosByStatus = async (storeId, status) => {
+  const apartadosRef = collection(db, 'stores', storeId, 'apartados');
+  const q = query(apartadosRef, where('status', '==', status), orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+/**
+ * Get single apartado by ID
+ */
+export const getApartadoById = async (storeId, apartadoId) => {
+  const docRef = doc(db, 'stores', storeId, 'apartados', apartadoId);
+  const docSnap = await getDoc(docRef);
+  
+  if (docSnap.exists()) {
+    return { id: docSnap.id, ...docSnap.data() };
+  }
+  return null;
+};
+
+/**
+ * Add payment to apartado
+ */
+export const addApartadoPayment = async (storeId, apartadoId, payment) => {
+  const apartado = await getApartadoById(storeId, apartadoId);
+  if (!apartado) throw new Error('Apartado not found');
+  
+  const newPayment = {
+    amount: payment.amount,
+    date: Timestamp.now(),
+    paymentMethod: payment.paymentMethod || 'cash',
+    receivedBy: payment.receivedBy,
+    receivedByName: payment.receivedByName
+  };
+  
+  const newRemainingBalance = apartado.remainingBalance - payment.amount;
+  const newDepositPaid = apartado.depositPaid + payment.amount;
+  
+  const updates = {
+    payments: arrayUnion(newPayment),
+    depositPaid: newDepositPaid,
+    remainingBalance: Math.max(0, newRemainingBalance),
+    updatedAt: Timestamp.now()
+  };
+  
+  // Auto-complete if fully paid
+  if (newRemainingBalance <= 0) {
+    updates.status = 'completed';
+    updates.completedAt = Timestamp.now();
+  }
+  
+  const docRef = doc(db, 'stores', storeId, 'apartados', apartadoId);
+  await updateDoc(docRef, updates);
+  
+  // Create a sale record for this payment (cash tracking)
+  const saleType = newRemainingBalance <= 0 ? 'apartado_complete' : 'apartado_payment';
+  await createSale({
+    storeId: storeId,
+    items: [{
+      name: newRemainingBalance <= 0 
+        ? `Liquidación Apartado ${apartado.apartadoNumber}`
+        : `Abono Apartado ${apartado.apartadoNumber}`,
+      price: payment.amount,
+      quantity: 1,
+      category: 'Apartado'
+    }],
+    total: payment.amount,
+    paymentMethod: payment.paymentMethod || 'cash',
+    userId: payment.receivedBy,
+    userName: payment.receivedByName,
+    customerName: apartado.clientName,
+    type: saleType,
+    apartadoId: apartadoId,
+    apartadoNumber: apartado.apartadoNumber
+  });
+  
+  return { ...apartado, ...updates, payments: [...apartado.payments, newPayment] };
+};
+
+/**
+ * Update apartado
+ */
+export const updateApartado = async (storeId, apartadoId, data) => {
+  const docRef = doc(db, 'stores', storeId, 'apartados', apartadoId);
+  await updateDoc(docRef, {
+    ...data,
+    updatedAt: Timestamp.now()
+  });
+};
+
+/**
+ * Complete apartado (mark as picked up)
+ */
+export const completeApartado = async (storeId, apartadoId) => {
+  const docRef = doc(db, 'stores', storeId, 'apartados', apartadoId);
+  await updateDoc(docRef, {
+    status: 'completed',
+    completedAt: Timestamp.now(),
+    updatedAt: Timestamp.now()
+  });
+};
+
+/**
+ * Cancel apartado
+ */
+export const cancelApartado = async (storeId, apartadoId, reason = '') => {
+  const docRef = doc(db, 'stores', storeId, 'apartados', apartadoId);
+  await updateDoc(docRef, {
+    status: 'cancelled',
+    cancelReason: reason,
+    cancelledAt: Timestamp.now(),
+    updatedAt: Timestamp.now()
+  });
+};
+
+/**
+ * Check and update expired apartados
+ */
+export const checkExpiredApartados = async (storeId) => {
+  const apartadosRef = collection(db, 'stores', storeId, 'apartados');
+  const q = query(apartadosRef, where('status', '==', 'active'));
+  const snapshot = await getDocs(q);
+  
+  const now = new Date();
+  const expired = [];
+  
+  for (const docSnap of snapshot.docs) {
+    const data = docSnap.data();
+    const dueDate = data.dueDate?.toDate ? data.dueDate.toDate() : new Date(data.dueDate);
+    
+    if (dueDate < now) {
+      await updateDoc(docSnap.ref, {
+        status: 'expired',
+        updatedAt: Timestamp.now()
+      });
+      expired.push(docSnap.id);
+    }
+  }
+  
+  return expired;
+};

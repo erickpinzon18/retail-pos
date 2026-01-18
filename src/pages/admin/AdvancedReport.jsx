@@ -20,14 +20,15 @@ import {
   Users2,
   Star,
   UserPlus,
-  Crown
+  Crown,
+  PackageOpen
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getSalesByDateRange, getCashClosesForDate, getClientMonthlyTotal } from '../../api/firestoreService';
+import { getAll, getSalesByDateRange, getCashClosesForDate, getClientMonthlyTotal, getApartados } from '../../api/firestoreService';
 
 const VIP_THRESHOLD = 2000;
 
@@ -47,6 +48,16 @@ export default function AdvancedReport() {
     topClients: [],
     topRegistrars: [],
     byStore: []
+  });
+  const [apartadoStats, setApartadoStats] = useState({
+    total: 0,
+    active: 0,
+    completed: 0,
+    expired: 0,
+    totalPending: 0,
+    totalCollected: 0,
+    byStore: [],
+    allApartados: []
   });
   
   // Date range
@@ -159,6 +170,47 @@ export default function AdvancedReport() {
         topClients,
         topRegistrars,
         byStore: Object.values(byStore).sort((a, b) => b.count - a.count)
+      });
+      
+      // Fetch apartados from all stores
+      let allApartados = [];
+      const apartadosByStore = [];
+      
+      for (const store of storesData) {
+        try {
+          const storeApartados = await getApartados(store.id);
+          allApartados = [...allApartados, ...storeApartados.map(a => ({ ...a, storeName: store.name, storeId: store.id }))];
+          
+          const active = storeApartados.filter(a => a.status === 'active');
+          const completed = storeApartados.filter(a => a.status === 'completed');
+          
+          apartadosByStore.push({
+            storeId: store.id,
+            storeName: store.name,
+            total: storeApartados.length,
+            active: active.length,
+            completed: completed.length,
+            pending: active.reduce((sum, a) => sum + (a.remainingBalance || 0), 0),
+            collected: storeApartados.reduce((sum, a) => sum + (a.depositPaid || 0), 0)
+          });
+        } catch (e) {
+          console.error(`Error fetching apartados for store ${store.name}:`, e);
+        }
+      }
+      
+      const activeApartados = allApartados.filter(a => a.status === 'active');
+      const completedApartados = allApartados.filter(a => a.status === 'completed');
+      const expiredApartados = allApartados.filter(a => a.status === 'expired');
+      
+      setApartadoStats({
+        total: allApartados.length,
+        active: activeApartados.length,
+        completed: completedApartados.length,
+        expired: expiredApartados.length,
+        totalPending: activeApartados.reduce((sum, a) => sum + (a.remainingBalance || 0), 0),
+        totalCollected: allApartados.reduce((sum, a) => sum + (a.depositPaid || 0), 0),
+        byStore: apartadosByStore.sort((a, b) => b.pending - a.pending),
+        allApartados
       });
       
     } catch (error) {
@@ -352,6 +404,7 @@ export default function AdvancedReport() {
     { id: 'stores', label: 'Tiendas', icon: Store },
     { id: 'closes', label: 'Cortes', icon: Wallet },
     { id: 'clients', label: 'Clientes', icon: Users2 },
+    { id: 'apartados', label: 'Apartados', icon: PackageOpen },
   ];
 
   if (loading) {
@@ -1002,6 +1055,169 @@ export default function AdvancedReport() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Apartados Tab */}
+      {activeTab === 'apartados' && (
+        <div className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
+              <p className="text-sm text-orange-600">Total Apartados</p>
+              <p className="text-2xl font-bold text-gray-800">{apartadoStats.total}</p>
+            </div>
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+              <div className="flex items-center gap-1">
+                <Clock size={14} className="text-blue-500" />
+                <p className="text-sm text-blue-600">Activos</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-800">{apartadoStats.active}</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+              <div className="flex items-center gap-1">
+                <CheckCircle size={14} className="text-green-500" />
+                <p className="text-sm text-green-600">Completados</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-800">{apartadoStats.completed}</p>
+            </div>
+            <div className="bg-red-50 p-4 rounded-xl border border-red-200">
+              <div className="flex items-center gap-1">
+                <AlertCircle size={14} className="text-red-500" />
+                <p className="text-sm text-red-600">Vencidos</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-800">{apartadoStats.expired}</p>
+            </div>
+            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+              <p className="text-sm text-emerald-600">Total Cobrado</p>
+              <p className="text-2xl font-bold text-emerald-700">{formatCurrency(apartadoStats.totalCollected)}</p>
+            </div>
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+              <p className="text-sm text-amber-600">Por Cobrar</p>
+              <p className="text-2xl font-bold text-amber-700">{formatCurrency(apartadoStats.totalPending)}</p>
+            </div>
+          </div>
+
+          {/* Apartados by Store */}
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <Store size={20} className="text-orange-500" />
+                Apartados por Tienda
+              </h3>
+            </div>
+            <div className="p-5">
+              {apartadoStats.byStore.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">Sin apartados registrados</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="text-left px-4 py-3 rounded-l-lg">Tienda</th>
+                        <th className="px-4 py-3 text-center">Total</th>
+                        <th className="px-4 py-3 text-center">Activos</th>
+                        <th className="px-4 py-3 text-center">Completados</th>
+                        <th className="px-4 py-3 text-center">Por Cobrar</th>
+                        <th className="px-4 py-3 text-center rounded-r-lg">Cobrado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {apartadoStats.byStore.map(store => (
+                        <tr key={store.storeId} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-800">{store.storeName}</td>
+                          <td className="px-4 py-3 text-center font-bold">{store.total}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                              {store.active}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                              {store.completed}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-orange-600">
+                            {formatCurrency(store.pending)}
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-green-600">
+                            {formatCurrency(store.collected)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 font-bold">
+                      <tr>
+                        <td className="px-4 py-3 rounded-l-lg">TOTAL</td>
+                        <td className="px-4 py-3 text-center">{apartadoStats.total}</td>
+                        <td className="px-4 py-3 text-center text-blue-600">{apartadoStats.active}</td>
+                        <td className="px-4 py-3 text-center text-green-600">{apartadoStats.completed}</td>
+                        <td className="px-4 py-3 text-center text-orange-600">{formatCurrency(apartadoStats.totalPending)}</td>
+                        <td className="px-4 py-3 text-center text-green-600 rounded-r-lg">{formatCurrency(apartadoStats.totalCollected)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Apartados List */}
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <PackageOpen size={20} className="text-orange-500" />
+                Apartados Activos Recientes
+              </h3>
+            </div>
+            <div className="p-5">
+              {apartadoStats.allApartados.filter(a => a.status === 'active').length === 0 ? (
+                <p className="text-gray-500 text-center py-8">Sin apartados activos</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {apartadoStats.allApartados.filter(a => a.status === 'active').slice(0, 9).map(apt => {
+                    const dueDate = apt.dueDate?.toDate ? apt.dueDate.toDate() : new Date(apt.dueDate);
+                    const daysLeft = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
+                    const progress = apt.total > 0 ? ((apt.depositPaid / apt.total) * 100).toFixed(0) : 0;
+                    
+                    return (
+                      <div key={apt.id} className={`bg-gray-50 p-4 rounded-xl border-l-4 ${
+                        daysLeft <= 3 ? 'border-red-500' : daysLeft <= 7 ? 'border-yellow-500' : 'border-green-500'
+                      }`}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-bold text-gray-800">{apt.apartadoNumber}</p>
+                            <p className="text-xs text-gray-500">{apt.storeName}</p>
+                          </div>
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                            daysLeft <= 3 ? 'bg-red-100 text-red-700' : 
+                            daysLeft <= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+                          }`}>
+                            {daysLeft}d
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">{apt.clientName}</p>
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>Pagado: {formatCurrency(apt.depositPaid)}</span>
+                          <span>{progress}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-orange-400 to-amber-500"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="text-xs text-gray-400">{apt.items?.length || 0} items</span>
+                          <span className="font-bold text-orange-600">{formatCurrency(apt.remainingBalance)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

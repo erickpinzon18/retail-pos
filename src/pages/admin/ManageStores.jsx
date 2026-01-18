@@ -21,7 +21,8 @@ import {
   Users2,
   Star,
   UserPlus,
-  Crown
+  Crown,
+  PackageOpen
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -29,7 +30,7 @@ import Badge from '../../components/ui/Badge';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getById, getSalesByDateRange, update, getCashClosesForDate, getClientMonthlyTotal } from '../../api/firestoreService';
+import { getAll, getById, getSalesByDateRange, update, getCashClosesForDate, getClientMonthlyTotal, getApartados } from '../../api/firestoreService';
 
 const VIP_THRESHOLD = 2000;
 
@@ -181,6 +182,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [storeClients, setStoreClients] = useState([]);
+  const [storeApartados, setStoreApartados] = useState([]);
   
   const [formData, setFormData] = useState({
     name: store.name || '',
@@ -249,6 +251,14 @@ function StoreDetailView({ store, onBack, onUpdate }) {
       );
       
       setStoreClients(clientsWithTotals.sort((a, b) => (b.monthlyPurchases || 0) - (a.monthlyPurchases || 0)));
+      
+      // Fetch apartados for this store
+      try {
+        const apartadosData = await getApartados(store.id);
+        setStoreApartados(apartadosData);
+      } catch (e) {
+        console.error('Error fetching apartados:', e);
+      }
       
     } catch (error) {
       console.error('Error fetching store details:', error);
@@ -391,6 +401,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
     { id: 'products', label: 'Productos', icon: ShoppingBag },
     { id: 'sellers', label: 'Vendedores', icon: Users },
     { id: 'clients', label: 'Clientes', icon: Users2 },
+    { id: 'apartados', label: 'Apartados', icon: PackageOpen },
     { id: 'config', label: 'Configuración', icon: Store },
   ];
 
@@ -794,6 +805,107 @@ function StoreDetailView({ store, onBack, onUpdate }) {
                         {isVip && (
                           <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">⭐ VIP</span>
                         )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Apartados Tab */}
+      {activeTab === 'apartados' && (
+        <div className="space-y-6">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
+              <p className="text-sm text-orange-600">Total</p>
+              <p className="text-2xl font-bold text-gray-800">{storeApartados.length}</p>
+            </div>
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+              <div className="flex items-center gap-1">
+                <Clock size={14} className="text-blue-500" />
+                <p className="text-sm text-blue-600">Activos</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-800">
+                {storeApartados.filter(a => a.status === 'active').length}
+              </p>
+            </div>
+            <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+              <p className="text-sm text-green-600">Completados</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {storeApartados.filter(a => a.status === 'completed').length}
+              </p>
+            </div>
+            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+              <p className="text-sm text-emerald-600">Cobrado</p>
+              <p className="text-xl font-bold text-emerald-700">
+                {formatCurrency(storeApartados.reduce((sum, a) => sum + (a.depositPaid || 0), 0))}
+              </p>
+            </div>
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+              <p className="text-sm text-amber-600">Por Cobrar</p>
+              <p className="text-xl font-bold text-amber-700">
+                {formatCurrency(storeApartados.filter(a => a.status === 'active').reduce((sum, a) => sum + (a.remainingBalance || 0), 0))}
+              </p>
+            </div>
+          </div>
+
+          {/* Active Apartados List */}
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <PackageOpen size={20} className="text-orange-500" />
+                Apartados Activos
+              </h3>
+            </div>
+            {storeApartados.filter(a => a.status === 'active').length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No hay apartados activos</p>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {storeApartados.filter(a => a.status === 'active').map(apt => {
+                  const dueDate = apt.dueDate?.toDate ? apt.dueDate.toDate() : new Date(apt.dueDate);
+                  const daysLeft = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
+                  const progress = apt.total > 0 ? ((apt.depositPaid / apt.total) * 100).toFixed(0) : 0;
+                  
+                  return (
+                    <div key={apt.id} className={`p-4 border-l-4 ${
+                      daysLeft <= 3 ? 'border-red-500 bg-red-50' : 
+                      daysLeft <= 7 ? 'border-yellow-500 bg-yellow-50' : 'border-green-500'
+                    }`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-bold text-gray-800">{apt.apartadoNumber}</p>
+                          <p className="text-sm text-gray-600">{apt.clientName} • #{apt.clientClientId}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                            daysLeft <= 3 ? 'bg-red-100 text-red-700' : 
+                            daysLeft <= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+                          }`}>
+                            {daysLeft}d restantes
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <div className="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Pagado: {formatCurrency(apt.depositPaid)}</span>
+                            <span>{progress}%</span>
+                          </div>
+                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-orange-400 to-amber-500"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-400">Restante</p>
+                          <p className="font-bold text-orange-600">{formatCurrency(apt.remainingBalance)}</p>
+                        </div>
                       </div>
                     </div>
                   );

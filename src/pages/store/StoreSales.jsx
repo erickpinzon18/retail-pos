@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Eye, Printer, RotateCcw, Calendar, DollarSign, ShoppingBag, TrendingUp, Clock, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { Eye, Printer, RotateCcw, Calendar, DollarSign, ShoppingBag, TrendingUp, Clock, AlertTriangle, CheckCircle, X, PackageOpen } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -75,6 +75,11 @@ export default function StoreSales() {
   const totalSales = sales.reduce((sum, sale) => sum + (sale.total || 0), 0);
   const totalTransactions = sales.length;
   const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+
+  // Apartado stats
+  const apartadoSales = sales.filter(s => s.type?.startsWith('apartado_'));
+  const apartadoTotal = apartadoSales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const regularSales = sales.filter(s => !s.type?.startsWith('apartado_'));
 
   // Payment method breakdown
   const paymentBreakdown = sales.reduce((acc, sale) => {
@@ -364,7 +369,16 @@ export default function StoreSales() {
                           <td className="px-4 py-3 text-gray-600">{formatTime(saleDate)}</td>
                           <td className="px-4 py-3">{sale.userName || 'Cajero'}</td>
                           <td className="px-4 py-3">
-                            <Badge variant="gray">{itemCount} items</Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="gray">{itemCount} items</Badge>
+                              {sale.type?.startsWith('apartado_') && (
+                                <Badge variant="warning" className="flex items-center gap-1">
+                                  <PackageOpen size={12} />
+                                  {sale.type === 'apartado_deposit' ? 'Anticipo' : 
+                                   sale.type === 'apartado_complete' ? 'Liquidación' : 'Abono'}
+                                </Badge>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3">{getPaymentBadge(sale.paymentMethod)}</td>
                           <td className="px-4 py-3 font-bold text-gray-800">{formatCurrency(sale.total || 0)}</td>

@@ -13,7 +13,8 @@ import {
   Clock,
   Store,
   DollarSign,
-  AlertTriangle
+  AlertTriangle,
+  PackageOpen
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useStore } from '../../context/StoreContext';
@@ -34,6 +35,7 @@ const generalItems = [
 
 const managementItems = [
   { to: '/store/clients', icon: Users, label: 'Clientes' },
+  { to: '/store/apartados', icon: PackageOpen, label: 'Apartados' },
   { to: '/store/products', icon: Package, label: 'Productos' },
   { to: '/store/promotions', icon: Tag, label: 'Promociones' },
 ];

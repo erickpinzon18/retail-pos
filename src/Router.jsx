@@ -17,6 +17,7 @@ import Checkout from './pages/store/Checkout';
 import StoreSales from './pages/store/StoreSales';
 import ManageProducts from './pages/store/ManageProducts';
 import ManageClients from './pages/store/ManageClients';
+import ManageApartados from './pages/store/ManageApartados';
 import StoreConfig from './pages/store/StoreConfig';
 import ViewPromotions from './pages/store/ViewPromotions';
 import ClientHome from './pages/client/ClientHome';
@@ -101,6 +102,7 @@ export default function Router() {
         <Route path="sales" element={<StoreSales />} />
         <Route path="products" element={<ManageProducts />} />
         <Route path="clients" element={<ManageClients />} />
+        <Route path="apartados" element={<ManageApartados />} />
         <Route path="config" element={<StoreConfig />} />
         <Route path="promotions" element={<ViewPromotions />} />
       </Route>

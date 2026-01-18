@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Building2, QrCode, Tag, X, UserPlus, Star, Users } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Building2, QrCode, Tag, X, UserPlus, Star, Users, Package, Clock } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -18,11 +18,13 @@ import {
   createSale,
   updateProductStock,
   addClientPurchase,
-  getClientMonthlyTotal
+  getClientMonthlyTotal,
+  createApartado
 } from '../../api/firestoreService';
 
 const VIP_THRESHOLD = 2000;
 const VIP_DISCOUNT = 15;
+const MIN_DEPOSIT_PERCENT = 10;
 
 export default function Checkout() {
   const { user } = useAuth();
@@ -52,6 +54,12 @@ export default function Checkout() {
   const [showClientResults, setShowClientResults] = useState(false);
   const [savingClient, setSavingClient] = useState(false);
   const [newClientData, setNewClientData] = useState({ name: '', phone: '' });
+
+  // Apartado states
+  const [showApartadoModal, setShowApartadoModal] = useState(false);
+  const [apartadoDeposit, setApartadoDeposit] = useState('');
+  const [apartadoNotes, setApartadoNotes] = useState('');
+  const [processingApartado, setProcessingApartado] = useState(false);
 
   // Auto-focus on search input on mount
   useEffect(() => {
@@ -375,6 +383,74 @@ export default function Checkout() {
     }
   };
 
+  // Handle Apartado creation
+  const handleApartado = async () => {
+    if (!customerInfo || customerInfo.id === 'mostrador') {
+      alert('Debes seleccionar un cliente para crear un apartado');
+      return;
+    }
+    
+    const depositAmount = parseFloat(apartadoDeposit) || 0;
+    const minDeposit = Math.ceil(total * (MIN_DEPOSIT_PERCENT / 100));
+    
+    if (depositAmount < minDeposit) {
+      alert(`El anticipo mínimo es ${formatCurrency(minDeposit)} (${MIN_DEPOSIT_PERCENT}% del total)`);
+      return;
+    }
+    
+    try {
+      setProcessingApartado(true);
+      
+      const apartadoData = {
+        clientId: customerInfo.id,
+        clientClientId: customerInfo.clientId,
+        clientName: customerInfo.name,
+        clientPhone: customerInfo.phone,
+        items: cartWithDiscounts.map(item => ({
+          productId: item.productId,
+          name: item.name,
+          category: item.category,
+          price: item.price,
+          quantity: item.quantity,
+          promoDiscount: item.promoDiscount || 0,
+          finalPrice: item.finalPrice
+        })),
+        total,
+        depositPaid: depositAmount,
+        paymentMethod: 'cash',
+        createdBy: user?.uid,
+        createdByName: user?.name || 'Vendedor',
+        storeName: storeName || storeConfig?.name || 'Tienda',
+        notes: apartadoNotes.trim()
+      };
+      
+      const result = await createApartado(storeId, apartadoData);
+      
+      alert(`✅ Apartado creado exitosamente!\n\nNúmero: ${result.apartadoNumber}\nCliente: ${customerInfo.name}\nAnticipo: ${formatCurrency(depositAmount)}\nRestante: ${formatCurrency(result.remainingBalance)}\n\nVence en 15 días.`);
+      
+      setShowApartadoModal(false);
+      setApartadoDeposit('');
+      setApartadoNotes('');
+      clearCart();
+      
+    } catch (error) {
+      console.error('Error creating apartado:', error);
+      alert('Error al crear apartado. Intenta de nuevo.');
+    } finally {
+      setProcessingApartado(false);
+    }
+  };
+
+  const openApartadoModal = () => {
+    if (!customerInfo || customerInfo.id === 'mostrador') {
+      alert('Debes seleccionar un cliente para crear un apartado');
+      return;
+    }
+    const minDeposit = Math.ceil(total * (MIN_DEPOSIT_PERCENT / 100));
+    setApartadoDeposit(minDeposit.toString());
+    setShowApartadoModal(true);
+  };
+
   const filteredProducts = products.filter((p) => {
     const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -624,18 +700,27 @@ export default function Checkout() {
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <button
             onClick={clearCart}
             disabled={cart.length === 0}
-            className="py-3 px-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="py-3 px-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             Cancelar
           </button>
           <button
+            onClick={openApartadoModal}
+            disabled={cart.length === 0 || !customerInfo}
+            className="py-3 px-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 text-sm"
+            title={!customerInfo ? 'Selecciona un cliente primero' : ''}
+          >
+            <Package size={16} />
+            Apartar
+          </button>
+          <button
             onClick={() => setShowCheckoutModal(true)}
             disabled={cart.length === 0}
-            className="py-3 px-4 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="py-3 px-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             Cobrar
           </button>
@@ -828,6 +913,105 @@ export default function Checkout() {
           >
             {processing ? 'Procesando...' : 'Finalizar Venta'}
           </button>
+        </div>
+      </Modal>
+
+      {/* Apartado Modal */}
+      <Modal
+        isOpen={showApartadoModal}
+        onClose={() => setShowApartadoModal(false)}
+        title="Crear Apartado"
+        size="md"
+      >
+        <div className="space-y-4">
+          {/* Client Info */}
+          <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Package size={18} className="text-orange-600" />
+              <span className="font-bold text-gray-800">Apartado para:</span>
+            </div>
+            <p className="font-bold text-gray-800">{customerInfo?.name}</p>
+            <p className="text-sm text-gray-500">#{customerInfo?.clientId} • {customerInfo?.phone}</p>
+          </div>
+
+          {/* Products Summary */}
+          <div className="bg-gray-50 p-4 rounded-xl">
+            <p className="text-sm text-gray-500 mb-2">{cart.length} producto(s)</p>
+            <div className="flex justify-between font-bold">
+              <span>Total a Apartar:</span>
+              <span className="text-lg text-gray-800">{formatCurrency(total)}</span>
+            </div>
+          </div>
+
+          {/* Deposit Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Anticipo <span className="text-red-500">*</span>
+              <span className="text-xs text-gray-400 ml-1">(mínimo {MIN_DEPOSIT_PERCENT}% = {formatCurrency(Math.ceil(total * (MIN_DEPOSIT_PERCENT / 100)))})</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+              <input
+                type="number"
+                min={Math.ceil(total * (MIN_DEPOSIT_PERCENT / 100))}
+                max={total}
+                value={apartadoDeposit}
+                onChange={(e) => setApartadoDeposit(e.target.value)}
+                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 text-lg font-bold"
+                placeholder={Math.ceil(total * (MIN_DEPOSIT_PERCENT / 100)).toString()}
+              />
+            </div>
+          </div>
+
+          {/* Balance Preview */}
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-gray-600">Anticipo:</span>
+              <span className="font-bold text-green-600">{formatCurrency(parseFloat(apartadoDeposit) || 0)}</span>
+            </div>
+            <div className="flex justify-between font-bold">
+              <span className="text-gray-700">Restante a pagar:</span>
+              <span className="text-lg text-orange-600">
+                {formatCurrency(Math.max(0, total - (parseFloat(apartadoDeposit) || 0)))}
+              </span>
+            </div>
+          </div>
+
+          {/* Due Date Info */}
+          <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-100 p-3 rounded-lg">
+            <Clock size={16} />
+            <span>El apartado vence en <strong>15 días</strong></span>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notas (opcional)</label>
+            <textarea
+              value={apartadoNotes}
+              onChange={(e) => setApartadoNotes(e.target.value)}
+              rows={2}
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 resize-none"
+              placeholder="Ej: Cliente paga cada viernes..."
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button 
+              onClick={() => setShowApartadoModal(false)}
+              className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={handleApartado}
+              disabled={processingApartado || !apartadoDeposit || parseFloat(apartadoDeposit) < Math.ceil(total * (MIN_DEPOSIT_PERCENT / 100))}
+              className="flex-1 py-3 px-4 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Package size={18} />
+              {processingApartado ? 'Creando...' : 'Crear Apartado'}
+            </button>
+          </div>
         </div>
       </Modal>
     </main>
