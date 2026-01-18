@@ -820,34 +820,46 @@ function StoreDetailView({ store, onBack, onUpdate }) {
         <div className="space-y-6">
           {/* Summary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
-              <p className="text-sm text-orange-600">Total</p>
-              <p className="text-2xl font-bold text-gray-800">{storeApartados.length}</p>
-            </div>
-            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-              <div className="flex items-center gap-1">
-                <Clock size={14} className="text-blue-500" />
-                <p className="text-sm text-blue-600">Activos</p>
+            <div className="bg-gradient-to-br from-orange-500 to-amber-600 p-4 rounded-2xl shadow-lg text-white">
+              <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                <PackageOpen size={18} />
               </div>
-              <p className="text-2xl font-bold text-gray-800">
+              <p className="text-white/80 text-xs">Total</p>
+              <p className="text-2xl font-bold">{storeApartados.length}</p>
+            </div>
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl shadow-lg text-white">
+              <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                <Clock size={18} />
+              </div>
+              <p className="text-white/80 text-xs">Activos</p>
+              <p className="text-2xl font-bold">
                 {storeApartados.filter(a => a.status === 'active').length}
               </p>
             </div>
-            <div className="bg-green-50 p-4 rounded-xl border border-green-200">
-              <p className="text-sm text-green-600">Completados</p>
-              <p className="text-2xl font-bold text-gray-800">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl shadow-lg text-white">
+              <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                <CheckCircle size={18} />
+              </div>
+              <p className="text-white/80 text-xs">Completados</p>
+              <p className="text-2xl font-bold">
                 {storeApartados.filter(a => a.status === 'completed').length}
               </p>
             </div>
-            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-              <p className="text-sm text-emerald-600">Cobrado</p>
-              <p className="text-xl font-bold text-emerald-700">
+            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-4 rounded-2xl shadow-lg text-white">
+              <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                <DollarSign size={18} />
+              </div>
+              <p className="text-white/80 text-xs">Cobrado</p>
+              <p className="text-xl font-bold">
                 {formatCurrency(storeApartados.reduce((sum, a) => sum + (a.depositPaid || 0), 0))}
               </p>
             </div>
-            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-              <p className="text-sm text-amber-600">Por Cobrar</p>
-              <p className="text-xl font-bold text-amber-700">
+            <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-lg text-white">
+              <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                <TrendingUp size={18} />
+              </div>
+              <p className="text-white/80 text-xs">Por Cobrar</p>
+              <p className="text-xl font-bold">
                 {formatCurrency(storeApartados.filter(a => a.status === 'active').reduce((sum, a) => sum + (a.remainingBalance || 0), 0))}
               </p>
             </div>

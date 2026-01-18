@@ -788,52 +788,61 @@ export default function Dashboard() {
       </div>
 
       {/* Apartados Section */}
-      <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-1 shadow-lg">
-        <div className="bg-white rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl">
-              <PackageOpen size={24} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">Apartados</h2>
-              <p className="text-sm text-gray-500">Resumen de todos los apartados</p>
-            </div>
-          </div>
+      <div className="bg-white rounded-2xl shadow-md p-6">
+        <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <PackageOpen size={20} className="text-orange-600" />
+          Apartados
+        </h2>
 
-          {/* Apartados Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
-              <p className="text-sm text-orange-600">Total</p>
-              <p className="text-2xl font-bold text-gray-800">{apartadoStats.total}</p>
+        {/* Apartados Stats Cards - matching main stat cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <div className="bg-gradient-to-br from-orange-500 to-amber-600 p-4 rounded-2xl shadow-lg text-white">
+            <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+              <PackageOpen size={18} />
             </div>
-            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-              <div className="flex items-center gap-1">
-                <Clock size={14} className="text-blue-500" />
-                <p className="text-sm text-blue-600">Activos</p>
-              </div>
-              <p className="text-2xl font-bold text-gray-800">{apartadoStats.active}</p>
-            </div>
-            <div className="bg-green-50 p-4 rounded-xl border border-green-200">
-              <p className="text-sm text-green-600">Completados</p>
-              <p className="text-2xl font-bold text-gray-800">{apartadoStats.completed}</p>
-            </div>
-            <div className="bg-red-50 p-4 rounded-xl border border-red-200">
-              <p className="text-sm text-red-600">Vencidos</p>
-              <p className="text-2xl font-bold text-gray-800">{apartadoStats.expired}</p>
-            </div>
-            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-              <p className="text-sm text-emerald-600">Cobrado</p>
-              <p className="text-2xl font-bold text-emerald-700">{formatCurrency(apartadoStats.totalCollected)}</p>
-            </div>
-            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-              <p className="text-sm text-amber-600">Por Cobrar</p>
-              <p className="text-2xl font-bold text-amber-700">{formatCurrency(apartadoStats.totalPending)}</p>
-            </div>
+            <p className="text-white/80 text-xs">Total</p>
+            <p className="text-2xl font-bold">{apartadoStats.total}</p>
           </div>
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl shadow-lg text-white">
+            <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+              <Clock size={18} />
+            </div>
+            <p className="text-white/80 text-xs">Activos</p>
+            <p className="text-2xl font-bold">{apartadoStats.active}</p>
+          </div>
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl shadow-lg text-white">
+            <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+              <Award size={18} />
+            </div>
+            <p className="text-white/80 text-xs">Completados</p>
+            <p className="text-2xl font-bold">{apartadoStats.completed}</p>
+          </div>
+          <div className="bg-gradient-to-br from-red-500 to-rose-600 p-4 rounded-2xl shadow-lg text-white">
+            <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+              <Calendar size={18} />
+            </div>
+            <p className="text-white/80 text-xs">Vencidos</p>
+            <p className="text-2xl font-bold">{apartadoStats.expired}</p>
+          </div>
+          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-4 rounded-2xl shadow-lg text-white">
+            <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+              <DollarSign size={18} />
+            </div>
+            <p className="text-white/80 text-xs">Cobrado</p>
+            <p className="text-xl font-bold">{formatCurrency(apartadoStats.totalCollected)}</p>
+          </div>
+          <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-lg text-white">
+            <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+              <TrendingUp size={18} />
+            </div>
+            <p className="text-white/80 text-xs">Por Cobrar</p>
+            <p className="text-xl font-bold">{formatCurrency(apartadoStats.totalPending)}</p>
+          </div>
+        </div>
 
-          {/* Apartados by Store */}
-          {apartadoStats.byStore.length > 0 && (
-            <div>
+        {/* Apartados by Store */}
+        {apartadoStats.byStore.length > 0 && (
+          <div className="bg-gray-50 rounded-xl p-4">
               <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
                 <Store size={16} /> Apartados por Tienda
               </h3>
