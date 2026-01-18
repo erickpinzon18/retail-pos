@@ -42,9 +42,8 @@ export default function AdminSidebar() {
           <div className="flex-1">
             <p className="font-bold text-gray-800">{user?.name || 'Administrador'}</p>
             <div className="flex items-center gap-1.5 mt-1">
-              <Crown size={12} className="text-yellow-500" />
               <span className="text-xs text-purple-600 font-semibold">
-                Super Admin
+                Admin
               </span>
             </div>
           </div>
@@ -111,7 +110,7 @@ export default function AdminSidebar() {
 
       {/* Bottom Section */}
       <div className="px-3 py-3 border-t border-gray-100 space-y-1">
-        <NavLink
+        {/* <NavLink
           to="/admin/settings"
           className={({ isActive }) =>
             `flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
@@ -123,7 +122,7 @@ export default function AdminSidebar() {
         >
           <Settings size={18} />
           <span className="text-sm">Configuración</span>
-        </NavLink>
+        </NavLink> */}
         <button
           onClick={handleLogout}
           className="flex items-center space-x-3 px-3 py-2.5 text-red-500 hover:bg-red-50 rounded-xl w-full transition-all duration-200"
