@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { getSalesByStore, getById, getTodayCashCloses, addCashClose, validateAndUseToken, processReturn } from '../../api/firestoreService';
 import { Eye, Printer, RotateCcw, Calendar, DollarSign, ShoppingBag, TrendingUp, Clock, AlertTriangle, CheckCircle, X, PackageOpen } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -9,7 +9,7 @@ import { formatTime } from '../../utils/dateUtils';
 import { printSaleTicket } from '../../utils/printTicket';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
-import { getSalesByStore, getById, getTodayCashCloses, addCashClose } from '../../api/firestoreService';
+import { useState, useEffect } from 'react';
 
 // Cash limit for triggering corte
 const CASH_LIMIT = 2000;
@@ -24,7 +24,9 @@ export default function StoreSales() {
   const [loading, setLoading] = useState(true);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showCashCloseModal, setShowCashCloseModal] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [returnToken, setReturnToken] = useState('');
+  const [tokenError, setTokenError] = useState('');
   const [showCorteConfirmation, setShowCorteConfirmation] = useState(false);
   const [lastCorteData, setLastCorteData] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
@@ -67,9 +69,10 @@ export default function StoreSales() {
     fetchData();
   }, [storeId]);
 
-  // Calculate stats
-  const totalSales = sales.reduce((sum, sale) => sum + (sale.total || 0), 0);
-  const totalTransactions = sales.length;
+  // Calculate stats - Filter out returned sales or count them negatively
+  const activeSales = sales.filter(s => s.status !== 'returned');
+  const totalSales = activeSales.reduce((sum, sale) => sum + (sale.total || 0), 0);
+  const totalTransactions = activeSales.length;
   const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
 
   // Apartado stats
@@ -104,15 +107,54 @@ export default function StoreSales() {
     : null;
   
   // Only count cash sales that happened AFTER the last corte
+  // Only count cash sales that happened AFTER the last corte AND are not returned
   const currentCashInRegister = sales.reduce((sum, sale) => {
-    if (sale.paymentMethod !== 'cash') return sum;
+    // Should we subtract returns? Ideally yes if cash was returned.
+    // For now, assuming returns involve giving cash back from register.
+    
     const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
-    // If there's no corte, count all cash sales. If there is, only count sales after it.
+    
+    // Logic for Sales - Returns
     if (!lastCorteTime || saleDate > lastCorteTime) {
-      return sum + (sale.total || 0);
+      if (sale.status === 'returned') {
+        // If returned and original payment was cash, subtract it
+        if (sale.paymentMethod === 'cash') {
+          return sum - (sale.total || 0);
+        }
+      } else {
+        // Normal sale
+        if (sale.paymentMethod === 'cash') {
+          return sum + (sale.total || 0);
+        }
+      }
     }
     return sum;
   }, 0);
+
+  // Payment breakdown ONLY since last corte (for corte submission)
+  const paymentBreakdownSinceLastCorte = sales.reduce((acc, sale) => {
+    const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+    if (!lastCorteTime || saleDate > lastCorteTime) {
+      const method = sale.paymentMethod || 'cash';
+      acc[method] = (acc[method] || 0) + (sale.total || 0);
+    }
+    return acc;
+  }, { cash: 0, card: 0, transfer: 0 });
+
+  // Card commission since last corte
+  const commissionSinceLastCorte = sales.reduce((sum, sale) => {
+    const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+    if (!lastCorteTime || saleDate > lastCorteTime) {
+      return sum + (sale.cardCommission || 0);
+    }
+    return sum;
+  }, 0);
+
+  // Sales count since last corte
+  const salesCountSinceLastCorte = sales.filter(sale => {
+    const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+    return !lastCorteTime || saleDate > lastCorteTime;
+  }).length;
 
   const paymentMethods = [
     { method: 'Efectivo', key: 'cash', amount: paymentBreakdown.cash || 0 },
@@ -150,13 +192,38 @@ export default function StoreSales() {
   };
 
   const handleReturn = () => {
-    setShowPinModal(true);
+    setReturnToken('');
+    setTokenError('');
+    setShowTokenModal(true);
   };
 
-  const handlePinConfirm = (pin) => {
-    setShowPinModal(false);
-    alert('Devolución autorizada con PIN: ' + pin);
-    setShowTicketModal(false);
+  const handleTokenSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedSale) return;
+    
+    setLoading(true);
+    setTokenError('');
+    
+    try {
+      // 1. Validate Token
+      const tokenData = await validateAndUseToken(returnToken, user);
+      
+      // 2. Process Return
+      await processReturn(selectedSale, tokenData, user);
+      
+      alert('Devolución procesada exitosamente');
+      setShowTokenModal(false);
+      setShowTicketModal(false);
+      
+      // Refresh data
+      // (Simplified refresh logic - standard useEffect will re-fetch if we triggered a update mechanism or we can reload window)
+      window.location.reload();
+      
+    } catch (err) {
+      setTokenError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openCashCloseModal = (closeType = null) => {
@@ -185,16 +252,16 @@ export default function StoreSales() {
         cashAmount,
         difference: Math.round((cashAmount - currentCashInRegister) * 100) / 100,
         notes: closeNotes || '',
-        salesCount: sales.length,
-        totalSales: totalSales || 0,
-        netSales: netSales || 0, // Total minus card commission
-        cardCommission: totalCardCommission || 0, // 4% commission on card sales
+        salesCount: salesCountSinceLastCorte,
+        // Totals since last corte
+        totalSales: paymentBreakdownSinceLastCorte.cash + paymentBreakdownSinceLastCorte.card + paymentBreakdownSinceLastCorte.transfer,
+        cardCommission: commissionSinceLastCorte, // 4% commission on card sales
         storeName: storeName || 'Tienda',
-        // Payment breakdown for confirmation display
+        // Payment breakdown since last corte
         paymentBreakdown: {
-          cash: paymentBreakdown.cash || 0,
-          card: paymentBreakdown.card || 0,
-          transfer: paymentBreakdown.transfer || 0
+          cash: paymentBreakdownSinceLastCorte.cash,
+          card: paymentBreakdownSinceLastCorte.card,
+          transfer: paymentBreakdownSinceLastCorte.transfer
         }
       };
       
@@ -308,7 +375,7 @@ export default function StoreSales() {
         </div> */}
         
         {/* Efectivo en Caja card */}
-        <div className={`p-5 rounded-xl shadow-md ${cashLimitExceeded ? 'bg-red-50 border-2 border-red-300' : 'bg-white'}`}>
+        {/* <div className={`p-5 rounded-xl shadow-md ${cashLimitExceeded ? 'bg-red-50 border-2 border-red-300' : 'bg-white'}`}>
           <div className="flex items-center gap-3">
             <div className={`p-3 rounded-xl ${cashLimitExceeded ? 'bg-red-100' : 'bg-yellow-100'}`}>
               <DollarSign size={24} className={cashLimitExceeded ? 'text-red-600' : 'text-yellow-600'} />
@@ -321,7 +388,7 @@ export default function StoreSales() {
               <p className="text-xs text-gray-400">Solo ventas desde último corte</p>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -358,12 +425,24 @@ export default function StoreSales() {
                       const itemCount = (sale.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
                       
                       return (
-                        <tr key={sale.id} className="hover:bg-gray-50 transition">
-                          <td className="px-4 py-3 text-gray-600">{formatTime(saleDate)}</td>
-                          <td className="px-4 py-3">{sale.userName || 'Cajero'}</td>
-                          <td className="px-4 py-3">
+                        <tr key={sale.id} className={`hover:bg-gray-50 transition border-l-4 ${sale.status === 'returned' ? 'bg-red-50 border-red-500' : 'border-transparent'}`}>
+                          <td className="px-4 py-3 text-gray-600">
+                            {formatTime(saleDate)}
+                            {sale.status === 'returned' && (
+                              <div className="mt-1">
+                                <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold uppercase">Devuelto</span>
+                                {sale.returnMetadata?.authorizedBy?.name && (
+                                  <span className="block text-[10px] text-red-600 mt-0.5 truncate max-w-[120px]">
+                                    Aut: {sale.returnMetadata.authorizedBy.name}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className={`px-4 py-3 ${sale.status === 'returned' ? 'opacity-50 line-through' : ''}`}>{sale.userName || 'Cajero'}</td>
+                          <td className={`px-4 py-3 ${sale.status === 'returned' ? 'opacity-50' : ''}`}>
                             <div className="flex items-center gap-2">
-                              <Badge variant="gray">{itemCount} items</Badge>
+                              <Badge variant={sale.status === 'returned' ? 'danger' : 'gray'}>{itemCount} items</Badge>
                               {sale.type?.startsWith('apartado_') && (
                                 <Badge variant="warning" className="flex items-center gap-1">
                                   <PackageOpen size={12} />
@@ -373,8 +452,8 @@ export default function StoreSales() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3">{getPaymentBadge(sale.paymentMethod)}</td>
-                          <td className="px-4 py-3">
+                          <td className={`px-4 py-3 ${sale.status === 'returned' ? 'opacity-50' : ''}`}>{getPaymentBadge(sale.paymentMethod)}</td>
+                          <td className={`px-4 py-3 ${sale.status === 'returned' ? 'opacity-50 line-through' : ''}`}>
                             <div className="font-bold text-gray-800">{formatCurrency(sale.total || 0)}</div>
                             {sale.paymentMethod === 'card' && (sale.cardCommission || 0) > 0 && (
                               <div className="text-xs text-red-500">-4% comisión: {formatCurrency(sale.cardCommission)}</div>
@@ -589,8 +668,9 @@ export default function StoreSales() {
                 className="flex-1"
                 icon={<RotateCcw size={18} />}
                 onClick={handleReturn}
+                disabled={selectedSale.status === 'returned'}
               >
-                Devolución
+                {selectedSale.status === 'returned' ? 'Devuelto' : 'Devolución'}
               </Button>
             </div>
           </div>
@@ -712,7 +792,7 @@ export default function StoreSales() {
                 )}
                 <div className="flex justify-between text-lg pt-1 border-t-2 border-gray-300">
                   <span className="text-gray-800 font-bold">Total Neto:</span>
-                  <span className="font-bold text-green-700">{formatCurrency(lastCorteData.netSales || lastCorteData.totalSales || 0)}</span>
+                  <span className="font-bold text-green-700">{formatCurrency((lastCorteData.totalSales || 0) - (lastCorteData.cardCommission || 0))}</span>
                 </div>
               </div>
               
@@ -743,13 +823,46 @@ export default function StoreSales() {
         )}
       </Modal>
 
-      {/* PIN Modal for Returns */}
-      <PinModal
-        isOpen={showPinModal}
-        onClose={() => setShowPinModal(false)}
-        onConfirm={handlePinConfirm}
+      {/* Token Validation Modal for Returns (Replaces PinModal) */}
+      <Modal
+        isOpen={showTokenModal}
+        onClose={() => setShowTokenModal(false)}
         title="Autorización Requerida"
-      />
+        size="sm"
+      >
+        <form onSubmit={handleTokenSubmit} className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+            <p>Se requiere un <b>Super Token</b> de administrador para autorizar esta devolución.</p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Código de 6 dígitos
+            </label>
+            <input
+              type="text"
+              value={returnToken}
+              onChange={(e) => setReturnToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              className="w-full border border-gray-300 rounded-lg py-3 px-4 text-center text-2xl font-bold tracking-widest focus:ring-2 focus:ring-indigo-500 uppercase"
+              placeholder="000000"
+              maxLength={6}
+              autoFocus
+            />
+            {tokenError && (
+              <p className="mt-1 text-sm text-red-600 font-medium">{tokenError}</p>
+            )}
+          </div>
+          
+          <Button 
+            type="submit" 
+            className="w-full"
+            disabled={returnToken.length !== 6 || loading}
+            loading={loading}
+          >
+            Autorizar Devolución
+          </Button>
+        </form>
+      </Modal>
     </div>
   );
 }

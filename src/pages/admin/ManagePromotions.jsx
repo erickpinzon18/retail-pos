@@ -25,6 +25,7 @@ const statusFilters = ['Todas', 'Activas', 'Programadas', 'Expiradas'];
 export default function ManagePromotions() {
   const [promotions, setPromotions] = useState([]);
   const [stores, setStores] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('Todas');
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,6 +42,7 @@ export default function ManagePromotions() {
     value: '',
     storeIds: [],
     status: true,
+    startAt: new Date().toISOString().split('T')[0],
     finishAt: ''
   });
 
@@ -51,12 +53,17 @@ export default function ManagePromotions() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [promosData, storesData] = await Promise.all([
+      const [promosData, storesData, productsData] = await Promise.all([
         getAll('promotions'),
-        getAll('stores')
+        getAll('stores'),
+        getAll('products')
       ]);
       setPromotions(promosData);
       setStores(storesData);
+      
+      // Extract unique categories from products
+      const uniqueCategories = [...new Set(productsData.map(p => p.category).filter(Boolean))].sort();
+      setCategories(uniqueCategories);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -69,7 +76,9 @@ export default function ManagePromotions() {
     const now = new Date();
     
     return promotions.map(promo => {
-      const startDate = promo.createdAt?.toDate ? promo.createdAt.toDate() : new Date(promo.createdAt);
+      // Use startAt if available, otherwise fallback to createdAt
+      const startField = promo.startAt || promo.createdAt;
+      const startDate = startField?.toDate ? startField.toDate() : new Date(startField);
       const finishDate = promo.finishAt?.toDate ? promo.finishAt.toDate() : new Date(promo.finishAt);
       
       let promoStatus;
@@ -124,7 +133,9 @@ export default function ManagePromotions() {
       category: '',
       value: '',
       storeIds: [],
+      storeIds: [],
       status: true,
+      startAt: new Date().toISOString().split('T')[0],
       finishAt: ''
     });
     setSelectedPromo(null);
@@ -148,6 +159,7 @@ export default function ManagePromotions() {
       value: promo.value || '',
       storeIds: promo.storeIds || [],
       status: promo.status !== false,
+      startAt: (promo.startAt?.toDate ? promo.startAt.toDate() : new Date(promo.startAt || promo.createdAt)).toISOString().split('T')[0],
       finishAt: finishDate.toISOString().split('T')[0]
     });
     setShowModal(true);
@@ -178,7 +190,10 @@ export default function ManagePromotions() {
         category: formData.category.trim(),
         value: Number(formData.value),
         storeIds: formData.storeIds.length === 0 ? ['global'] : formData.storeIds,
+        storeIds: formData.storeIds.length === 0 ? ['global'] : formData.storeIds,
         status: formData.status,
+        type: "percentage",
+        startAt: new Date(formData.startAt),
         finishAt: new Date(formData.finishAt)
       };
       
@@ -434,7 +449,7 @@ export default function ManagePromotions() {
                       <Calendar size={14} />
                       <span>
                         {promo.promoStatus === 'scheduled' 
-                          ? `Inicia: ${formatDate(promo.createdAt)}`
+                          ? `Inicia: ${formatDate(promo.startAt || promo.createdAt)}`
                           : promo.promoStatus === 'expired' || promo.promoStatus === 'inactive'
                           ? `Expiró: ${formatDate(promo.finishAt)}`
                           : `Termina: ${formatDate(promo.finishAt)}`
@@ -477,13 +492,16 @@ export default function ManagePromotions() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Categoría
               </label>
-              <input
-                type="text"
+              <select
                 value={formData.category}
                 onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                 className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
-                placeholder="Ej: Ropa, Electrónica..."
-              />
+              >
+                <option value="">Seleccionar...</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -502,17 +520,31 @@ export default function ManagePromotions() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha de Expiración <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              value={formData.finishAt}
-              onChange={(e) => setFormData(prev => ({ ...prev, finishAt: e.target.value }))}
-              required
-              className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fecha de Inicio
+              </label>
+              <input
+                type="date"
+                value={formData.startAt}
+                onChange={(e) => setFormData(prev => ({ ...prev, startAt: e.target.value }))}
+                required
+                className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fecha de Expiración <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={formData.finishAt}
+                onChange={(e) => setFormData(prev => ({ ...prev, finishAt: e.target.value }))}
+                required
+                className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
           </div>
 
           <div>

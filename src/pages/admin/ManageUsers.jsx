@@ -9,13 +9,16 @@ import {
   Calendar,
   DollarSign,
   ShoppingBag,
-  Eye
+  Eye,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getAll, create, update, remove, getSalesByDateRange } from '../../api/firestoreService';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export default function ManageUsers() {
   const [users, setUsers] = useState([]);
@@ -35,10 +38,12 @@ export default function ManageUsers() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     pin: '',
     storeId: '',
     role: 'cashier',
-    type: 'weekday'
+    type: 'weekday',
+    status: true // true = active, false = disabled
   });
 
   useEffect(() => {
@@ -71,10 +76,12 @@ export default function ManageUsers() {
     setFormData({
       name: '',
       email: '',
+      password: '',
       pin: '',
       storeId: stores[0]?.id || '',
       role: 'cashier',
-      type: 'weekday'
+      type: 'weekday',
+      status: true
     });
     setSelectedUser(null);
   };
@@ -91,10 +98,12 @@ export default function ManageUsers() {
     setFormData({
       name: user.name || '',
       email: user.email || '',
+      password: '', // Don't show existing password
       pin: user.pin || '',
       storeId: user.storeId || '',
       role: user.role || 'cashier',
-      type: user.type || 'weekday'
+      type: user.type || 'weekday',
+      status: user.status !== false // Default to true if undefined
     });
     setShowUserModal(true);
   };
@@ -144,14 +153,31 @@ export default function ManageUsers() {
         pin: formData.pin,
         storeId: formData.storeId,
         role: formData.role,
-        type: formData.type
+        type: formData.type,
+        status: formData.status
       };
       
       if (isEditing && selectedUser) {
+        // Update existing user (Firestore only)
+        // Note: Password update not supported here for security (should use auth reset)
+        delete userData.password; // Remove password from data to update
         await update('users', selectedUser.id, userData);
       } else {
-        await create('users', userData);
+        // Create new user via Cloud Function
+        if (!formData.password || formData.password.length < 6) {
+          alert('La contraseña debe tener al menos 6 caracteres');
+          return;
+        }
+
+        const functions = getFunctions();
+        const createUser = httpsCallable(functions, 'createUser');
+        
+        await createUser({
+          ...userData,
+          password: formData.password
+        });
       }
+
       
       await fetchData();
       setShowUserModal(false);
@@ -176,6 +202,23 @@ export default function ManageUsers() {
     } catch (error) {
       console.error('Error deleting user:', error);
       alert('Error al eliminar el usuario');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleStatus = async (user) => {
+    try {
+      setSaving(true);
+      const newStatus = !user.status; // Toggle status
+      // If undefined, assume true, so new is false
+      if (user.status === undefined) newStatus === false; 
+      
+      await update('users', user.id, { status: user.status === false ? true : false });
+      await fetchData();
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      alert('Error al actualizar estado');
     } finally {
       setSaving(false);
     }
@@ -344,6 +387,7 @@ export default function ManageUsers() {
                     <div className="flex items-center gap-2">
                       {getRoleBadge(user.role)}
                       {getTypeBadge(user.type)}
+                      {user.status === false && <Badge variant="danger">Deshabilitado</Badge>}
                     </div>
                     <div className="flex items-center gap-1">
                       <button 
@@ -358,11 +402,23 @@ export default function ManageUsers() {
                       >
                         <Pencil size={18} />
                       </button>
-                      <button 
+                      {/* <button 
                         onClick={() => handleDeleteClick(user)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                       >
                         <Trash2 size={18} />
+                      </button> */}
+                      <button 
+                        onClick={() => handleToggleStatus(user)}
+                        className={`p-2 rounded-lg transition ${
+                          user.status === false 
+                            ? 'text-red-400 hover:text-green-600 hover:bg-green-50' 
+                            : 'text-green-600 hover:text-red-600 hover:bg-red-50'
+                        }`}
+                        title={user.status === false ? "Habilitar Usuario" : "Deshabilitar Usuario"}
+                        disabled={saving}
+                      >
+                        {user.status === false ? <UserX size={18} /> : <UserCheck size={18} />}
                       </button>
                     </div>
                   </div>
@@ -405,10 +461,27 @@ export default function ManageUsers() {
               placeholder="email@ejemplo.com"
             />
           </div>
+          
+          {!isEditing && (
+             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Contraseña <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+                placeholder="Mínimo 6 caracteres"
+                required={!isEditing}
+                minLength={6}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              {/* <label className="block text-sm font-medium text-gray-700 mb-1">
                 PIN de Acceso <span className="text-red-500">*</span>
               </label>
               <input
@@ -419,7 +492,7 @@ export default function ManageUsers() {
                 maxLength={6}
                 className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
                 placeholder="4-6 dígitos"
-              />
+              /> */}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tienda</label>
@@ -445,7 +518,7 @@ export default function ManageUsers() {
                 className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="seller">Vendedor</option>
-                <option value="manager">Gerente</option>
+                {/* <option value="manager">Gerente</option> */}
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -456,7 +529,7 @@ export default function ManageUsers() {
                 onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
                 className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="weekday">Entre Semana</option>
+                <option value="week">Entre Semana</option>
                 <option value="weekend">Fin de Semana</option>
               </select>
             </div>

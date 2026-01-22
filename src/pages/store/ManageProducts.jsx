@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Search, PlusCircle, X } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -17,6 +17,9 @@ export default function ManageProducts() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [skuError, setSkuError] = useState('');
+  const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -26,6 +29,24 @@ export default function ManageProducts() {
     cost: '',
     sku: ''
   });
+
+  // Generate automatic SKU
+  const generateSKU = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let sku = 'SKU-';
+    for (let i = 0; i < 6; i++) {
+      sku += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return sku;
+  };
+
+  // Check if SKU already exists
+  const isSkuDuplicate = (sku, excludeProductId = null) => {
+    return products.some(p => 
+      p.sku?.toUpperCase() === sku.toUpperCase() && 
+      p.id !== excludeProductId
+    );
+  };
 
   useEffect(() => {
     fetchData();
@@ -56,18 +77,31 @@ export default function ManageProducts() {
       sku: ''
     });
     setSelectedProduct(null);
+    setIsAddingNewCategory(false);
+    setNewCategoryName('');
   };
 
   const handleAddProduct = () => {
     setIsEditing(false);
     resetForm();
-    setFormData(prev => ({ ...prev, category: categories[1] || '' }));
+    setSkuError('');
+    // Generate unique SKU
+    let newSku = generateSKU();
+    while (isSkuDuplicate(newSku)) {
+      newSku = generateSKU();
+    }
+    setFormData(prev => ({ 
+      ...prev, 
+      category: categories[1] || '',
+      sku: newSku
+    }));
     setShowProductModal(true);
   };
 
   const handleEditProduct = (product) => {
     setIsEditing(true);
     setSelectedProduct(product);
+    setSkuError('');
     setFormData({
       name: product.name || '',
       category: product.category || '',
@@ -85,16 +119,34 @@ export default function ManageProducts() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSkuError('');
     
+    // Validate SKU is not duplicate
+    const skuToCheck = formData.sku.trim();
+    if (isSkuDuplicate(skuToCheck, isEditing ? selectedProduct?.id : null)) {
+      setSkuError('Este SKU ya existe. Por favor usa otro.');
+      return;
+    }
+    
+    // Determine the final category to save
+    let categoryToSave = formData.category;
+    if (isAddingNewCategory) {
+        if (!newCategoryName.trim()) {
+            alert('Por favor escribe el nombre de la nueva categoría');
+            return;
+        }
+        categoryToSave = newCategoryName.trim();
+    }
+
     try {
       setSaving(true);
       
       const productData = {
         name: formData.name.trim(),
-        category: formData.category,
+        category: categoryToSave,
         price: parseFloat(formData.price) || 0,
         cost: parseFloat(formData.cost) || 0,
-        sku: formData.sku.trim()
+        sku: skuToCheck
       };
       
       if (isEditing && selectedProduct) {
@@ -109,10 +161,11 @@ export default function ManageProducts() {
     } catch (error) {
       console.error('Error saving product:', error);
       alert('Error al guardar el producto');
-    } finally {
-      setSaving(false);
-    }
+     } finally {
+       setSaving(false);
+     }
   };
+
 
   const handleDelete = async () => {
     if (!selectedProduct) return;
@@ -286,30 +339,77 @@ export default function ManageProducts() {
           {/* Categoría y SKU */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Categoría <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.category}
-                onChange={(e) => handleFormChange('category', e.target.value)}
-                required
-                className="w-full border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Seleccionar...</option>
-                {categories.filter(c => c !== 'Todos').map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Categoría <span className="text-red-500">*</span>
+                </label>
+                {!isAddingNewCategory ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingNewCategory(true);
+                      setNewCategoryName('');
+                      handleFormChange('category', '');
+                    }}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium"
+                  >
+                    <PlusCircle size={14} /> Nueva
+                  </button>
+                ) : (
+                   <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingNewCategory(false);
+                      setNewCategoryName('');
+                    }}
+                    className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 font-medium"
+                  >
+                    <X size={14} /> Cancelar
+                  </button>
+                )}
+              </div>
+              
+              {isAddingNewCategory ? (
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Nombre de la nueva categoría"
+                  required
+                  autoFocus
+                />
+              ) : (
+                <select
+                  value={formData.category}
+                  onChange={(e) => handleFormChange('category', e.target.value)}
+                  required
+                  className="w-full border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Seleccionar...</option>
+                  {categories.filter(c => c !== 'Todos').map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">SKU / Código</label>
               <input
                 type="text"
                 value={formData.sku}
-                onChange={(e) => handleFormChange('sku', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500"
-                placeholder="Opcional"
+                onChange={(e) => {
+                  handleFormChange('sku', e.target.value.toUpperCase());
+                  setSkuError(''); // Clear error when typing
+                }}
+                className={`w-full border rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 ${
+                  skuError ? 'border-red-500 bg-red-50' : 'border-gray-200'
+                }`}
+                placeholder="Auto-generado"
               />
+              {skuError && (
+                <p className="text-red-500 text-sm mt-1">{skuError}</p>
+              )}
             </div>
           </div>
 

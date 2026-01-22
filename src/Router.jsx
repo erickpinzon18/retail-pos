@@ -13,12 +13,13 @@ import ManageUsers from './pages/admin/ManageUsers';
 import ManagePromotions from './pages/admin/ManagePromotions';
 import AdvancedReport from './pages/admin/AdvancedReport';
 import GenerateReport from './pages/admin/GenerateReport';
+import SessionLogs from './pages/admin/SessionLogs';
+import GenerateToken from './pages/admin/GenerateToken';
 import Checkout from './pages/store/Checkout';
 import StoreSales from './pages/store/StoreSales';
 import ManageProducts from './pages/store/ManageProducts';
 import ManageClients from './pages/store/ManageClients';
 import ManageApartados from './pages/store/ManageApartados';
-import StoreConfig from './pages/store/StoreConfig';
 import ViewPromotions from './pages/store/ViewPromotions';
 import ClientHome from './pages/client/ClientHome';
 
@@ -86,6 +87,8 @@ export default function Router() {
         <Route path="users" element={<ManageUsers />} />
         <Route path="reports" element={<AdvancedReport />} />
         <Route path="reports/generate" element={<GenerateReport />} />
+        <Route path="logs" element={<SessionLogs />} />
+        <Route path="tokens" element={<GenerateToken />} />
         <Route path="promotions" element={<ManagePromotions />} />
       </Route>
 
@@ -103,7 +106,6 @@ export default function Router() {
         <Route path="products" element={<ManageProducts />} />
         <Route path="clients" element={<ManageClients />} />
         <Route path="apartados" element={<ManageApartados />} />
-        <Route path="config" element={<StoreConfig />} />
         <Route path="promotions" element={<ViewPromotions />} />
       </Route>
 

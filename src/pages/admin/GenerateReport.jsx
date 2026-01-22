@@ -10,23 +10,48 @@ export default function GenerateReport() {
   const [stores, setStores] = useState([]);
   const [sales, setSales] = useState([]);
   
+  // Date range filters
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedStoreId, setSelectedStoreId] = useState('all');
+  
   useEffect(() => {
-    fetchData();
+    fetchStores();
   }, []);
+  
+  useEffect(() => {
+    if (stores.length > 0) {
+      fetchData();
+    }
+  }, [stores, startDate, endDate, selectedStoreId]);
+  
+  const fetchStores = async () => {
+    try {
+      const storesData = await getAll('stores');
+      setStores(storesData);
+    } catch (error) {
+      console.error('Error fetching stores:', error);
+    }
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const storesData = await getAll('stores');
-      setStores(storesData);
       
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
       
       let allSales = [];
-      for (const store of storesData) {
-        const storeSales = await getSalesByDateRange(store.id, monthStart, new Date());
+      const storesToFetch = selectedStoreId === 'all' ? stores : stores.filter(s => s.id === selectedStoreId);
+      
+      for (const store of storesToFetch) {
+        const storeSales = await getSalesByDateRange(store.id, start, end);
         allSales = [...allSales, ...storeSales.map(s => ({ ...s, storeName: store.name, storeId: store.id }))];
       }
       
@@ -93,14 +118,23 @@ export default function GenerateReport() {
       // Header
       pdf.setFontSize(22);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Retail POS - Reporte de Ventas', margin, y);
+      pdf.text('Flea Market - Reporte de Ventas', margin, y);
       y += 8;
       
       pdf.setFontSize(11);
       pdf.setFont('helvetica', 'normal');
-      const currentMonth = new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+      
+      const startDateObj = new Date(startDate);
+      const endDateObj = new Date(endDate);
+      const dateRangeText = `Periodo: ${startDateObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} - ${endDateObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+      const storeText = selectedStoreId === 'all' ? 'Todas las tiendas' : stores.find(s => s.id === selectedStoreId)?.name || 'Tienda';
       const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
-      pdf.text(`Periodo: ${currentMonth} | Generado: ${today}`, margin, y);
+      
+      pdf.text(dateRangeText, margin, y);
+      y += 5;
+      pdf.text(`Tienda: ${storeText}`, margin, y);
+      y += 5;
+      pdf.text(`Generado: ${today}`, margin, y);
       y += 12;
       
       // Separator line
@@ -249,10 +283,11 @@ export default function GenerateReport() {
       // Footer
       pdf.setFontSize(8);
       pdf.setFont('helvetica', 'normal');
-      pdf.text('Documento confidencial - Retail POS ' + new Date().getFullYear(), margin, 290);
+      pdf.text('Documento confidencial - Flea Market ' + new Date().getFullYear(), margin, 290);
       
-      const month = new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).replace(' ', '_');
-      pdf.save(`reporte_ventas_${month}.pdf`);
+      const storeName = selectedStoreId === 'all' ? 'todas_tiendas' : (stores.find(s => s.id === selectedStoreId)?.name || 'tienda').replace(/\s+/g, '_');
+      const fileDate = `${startDate}_a_${endDate}`.replace(/-/g, '');
+      pdf.save(`reporte_ventas_${storeName}_${fileDate}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Error al generar PDF: ' + error.message);
@@ -267,7 +302,10 @@ export default function GenerateReport() {
     return 'Efectivo';
   };
 
-  const currentMonth = new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  const startDateObj = new Date(startDate);
+  const endDateObj = new Date(endDate);
+  const dateRangeText = `${startDateObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} - ${endDateObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  const storeText = selectedStoreId === 'all' ? 'Todas las tiendas' : stores.find(s => s.id === selectedStoreId)?.name || 'Tienda';
   const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
 
   if (loading) {
@@ -281,23 +319,57 @@ export default function GenerateReport() {
   return (
     <div className="max-w-5xl mx-auto p-6">
       {/* Controls */}
-      <div className="text-center mb-6">
-        <div className="flex justify-center gap-4 mb-4">
-          <button 
-            onClick={() => navigate('/admin/reports')}
-            className="px-6 py-3 bg-gray-100 border border-gray-300 rounded-xl font-medium hover:bg-gray-200"
-          >
-            ← Volver
-          </button>
-          <button 
-            onClick={handleDownloadPDF}
-            disabled={downloading}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {downloading ? '⏳ Generando...' : '📥 Descargar PDF'}
-          </button>
+      <div className="mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+          <div className="flex gap-3">
+            <button 
+              onClick={() => navigate('/admin/reports')}
+              className="px-6 py-3 bg-gray-100 border border-gray-300 rounded-xl font-medium hover:bg-gray-200"
+            >
+              ← Volver
+            </button>
+            <button 
+              onClick={handleDownloadPDF}
+              disabled={downloading}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {downloading ? '⏳ Generando...' : '📥 Descargar PDF'}
+            </button>
+          </div>
+          
+          {/* Date and Store Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Desde:</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Hasta:</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <select
+              value={selectedStoreId}
+              onChange={(e) => setSelectedStoreId(e.target.value)}
+              className="border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">Todas las tiendas</option>
+              {stores.map(store => (
+                <option key={store.id} value={store.id}>{store.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <p className="text-gray-500 text-sm">Vista previa del reporte</p>
+        <p className="text-gray-500 text-sm text-center">Vista previa del reporte</p>
       </div>
 
       {/* Report Preview */}
@@ -309,8 +381,9 @@ export default function GenerateReport() {
               🏪
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-gray-800">Retail POS</h1>
-              <p className="text-gray-500">Reporte de Ventas - {currentMonth}</p>
+              <h1 className="text-2xl font-extrabold text-gray-800">Flea Market</h1>
+              <p className="text-gray-500">Reporte de Ventas</p>
+              <p className="text-sm text-gray-600">{dateRangeText} • {storeText}</p>
             </div>
           </div>
           <div className="text-right">
@@ -467,7 +540,7 @@ export default function GenerateReport() {
         {/* Footer */}
         <div className="pt-6 mt-6 border-t text-center text-xs text-gray-400">
           <p>Este documento es confidencial y para uso interno exclusivamente.</p>
-          <p className="mt-1">© {new Date().getFullYear()} Retail POS. Todos los derechos reservados.</p>
+          <p className="mt-1">© {new Date().getFullYear()} Flea Market. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>

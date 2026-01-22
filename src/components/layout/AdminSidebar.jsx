@@ -7,7 +7,9 @@ import {
   LogOut,
   Settings,
   Tag,
-  Crown
+  Crown,
+  Shield,
+  Key
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -20,6 +22,8 @@ const mainItems = [
 const managementItems = [
   { to: '/admin/reports', icon: FileText, label: 'Reportes' },
   { to: '/admin/promotions', icon: Tag, label: 'Promociones' },
+  { to: '/admin/logs', icon: Shield, label: 'Registros' },
+  { to: '/admin/tokens', icon: Key, label: 'Tokens' },
 ];
 
 export default function AdminSidebar() {

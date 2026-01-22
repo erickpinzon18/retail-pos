@@ -28,7 +28,7 @@ import Badge from '../../components/ui/Badge';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getSalesByDateRange, getCashClosesForDate, getClientMonthlyTotal, getApartados } from '../../api/firestoreService';
+import { getAll, getSalesByDateRange, getCashClosesForDate, getClientTotalByDateRange, getApartados } from '../../api/firestoreService';
 
 const VIP_THRESHOLD = 2000;
 
@@ -38,7 +38,6 @@ export default function AdvancedReport() {
   const [stores, setStores] = useState([]);
   const [sales, setSales] = useState([]);
   const [cashCloses, setCashCloses] = useState([]);
-  const [closesDate, setClosesDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedStore, setSelectedStore] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
   const [clientStats, setClientStats] = useState({
@@ -78,16 +77,24 @@ export default function AdvancedReport() {
     if (stores.length > 0) {
       fetchCashCloses();
     }
-  }, [stores, closesDate]);
+  }, [stores, startDate, endDate]);
 
   const fetchCashCloses = async () => {
     try {
       const allCloses = [];
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
       for (const store of stores) {
-        const closes = await getCashClosesForDate(store.id, closesDate);
-        closes.forEach(close => {
-          allCloses.push({ ...close, storeName: store.name, storeId: store.id });
-        });
+        // Iterate through each day in the range
+        // Note: For long ranges this might be heavy, but it's the only way with current structure
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          const closes = await getCashClosesForDate(store.id, dateStr);
+          closes.forEach(close => {
+            allCloses.push({ ...close, storeName: store.name, storeId: store.id });
+          });
+        }
       }
       setCashCloses(allCloses);
     } catch (error) {
@@ -123,8 +130,8 @@ export default function AdvancedReport() {
       const clientsWithTotals = await Promise.all(
         clientsData.map(async (client) => {
           try {
-            const monthlyTotal = await getClientMonthlyTotal(client.id);
-            return { ...client, monthlyPurchases: monthlyTotal };
+            const rangeTotal = await getClientTotalByDateRange(client.id, start, end);
+            return { ...client, monthlyPurchases: rangeTotal }; // Using same prop name for compatibility
           } catch {
             return { ...client, monthlyPurchases: 0 };
           }
@@ -134,7 +141,7 @@ export default function AdvancedReport() {
       const vipClients = clientsWithTotals.filter(c => (c.monthlyPurchases || 0) >= VIP_THRESHOLD);
       const newClients = clientsData.filter(c => {
         const created = c.createdAt?.toDate ? c.createdAt.toDate() : new Date(c.createdAt);
-        return created >= clientMonthStart;
+        return created >= start && created <= end;
       });
       
       const topClients = [...clientsWithTotals]
@@ -179,19 +186,26 @@ export default function AdvancedReport() {
       for (const store of storesData) {
         try {
           const storeApartados = await getApartados(store.id);
-          allApartados = [...allApartados, ...storeApartados.map(a => ({ ...a, storeName: store.name, storeId: store.id }))];
+
+          // Filter apartados by date range (created within range)
+          const filteredApartados = storeApartados.filter(a => {
+            const created = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+            return created >= start && created <= end;
+          });
           
-          const active = storeApartados.filter(a => a.status === 'active');
-          const completed = storeApartados.filter(a => a.status === 'completed');
+          allApartados = [...allApartados, ...filteredApartados.map(a => ({ ...a, storeName: store.name, storeId: store.id }))];
+          
+          const active = filteredApartados.filter(a => a.status === 'active');
+          const completed = filteredApartados.filter(a => a.status === 'completed');
           
           apartadosByStore.push({
             storeId: store.id,
             storeName: store.name,
-            total: storeApartados.length,
+            total: filteredApartados.length,
             active: active.length,
             completed: completed.length,
             pending: active.reduce((sum, a) => sum + (a.remainingBalance || 0), 0),
-            collected: storeApartados.reduce((sum, a) => sum + (a.depositPaid || 0), 0)
+            collected: filteredApartados.reduce((sum, a) => sum + (a.depositPaid || 0), 0)
           });
         } catch (e) {
           console.error(`Error fetching apartados for store ${store.name}:`, e);
@@ -329,6 +343,63 @@ export default function AdvancedReport() {
     
     return { labels, data: [{ label: 'Ventas', values }] };
   }, [filteredSales]);
+
+  // Filter client stats by selected store
+  const filteredClientStats = useMemo(() => {
+    if (selectedStore === 'all') return clientStats;
+    
+    const storeInfo = stores.find(s => s.id === selectedStore);
+    const storeName = storeInfo?.name || '';
+    
+    // Filter top clients to only those registered at this store
+    const topClients = clientStats.topClients.filter(c => 
+      c.registeredAtStoreName === storeName
+    );
+    
+    // Filter registrars to only those at this store
+    const topRegistrars = clientStats.topRegistrars.filter(r => 
+      r.storeName === storeName
+    );
+    
+    // Filter by store
+    const byStore = clientStats.byStore.filter(s => s.name === storeName);
+    
+    return {
+      ...clientStats,
+      topClients,
+      topRegistrars,
+      byStore
+    };
+  }, [clientStats, selectedStore, stores]);
+
+  // Filter cash closes by selected store
+  const filteredCashCloses = useMemo(() => {
+    if (selectedStore === 'all') return cashCloses;
+    return cashCloses.filter(c => c.storeId === selectedStore);
+  }, [cashCloses, selectedStore]);
+
+  // Filter apartado stats by selected store
+  const filteredApartadoStats = useMemo(() => {
+    if (selectedStore === 'all') return apartadoStats;
+    
+    const filtered = apartadoStats.allApartados.filter(a => a.storeId === selectedStore);
+    const byStore = apartadoStats.byStore.filter(s => s.storeId === selectedStore);
+    
+    const active = filtered.filter(a => a.status === 'active');
+    const completed = filtered.filter(a => a.status === 'completed');
+    const expired = filtered.filter(a => a.status === 'expired');
+    
+    return {
+      total: filtered.length,
+      active: active.length,
+      completed: completed.length,
+      expired: expired.length,
+      totalPending: active.reduce((sum, a) => sum + (a.remainingBalance || 0), 0),
+      totalCollected: filtered.reduce((sum, a) => sum + (a.depositPaid || 0), 0),
+      byStore,
+      allApartados: filtered
+    };
+  }, [apartadoStats, selectedStore]);
 
   const exportCSV = () => {
     // Simple CSV export
@@ -758,17 +829,8 @@ export default function AdvancedReport() {
           <div className="bg-white rounded-2xl shadow-md p-5">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
               <div>
-                <h3 className="font-bold text-gray-800 text-lg">Cortes de Caja del Día</h3>
+                <h3 className="font-bold text-gray-800 text-lg">Cortes de Caja</h3>
                 <p className="text-sm text-gray-500">Visualiza los cortes realizados por tienda</p>
-              </div>
-              <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-xl">
-                <Calendar size={16} className="text-gray-400" />
-                <input 
-                  type="date" 
-                  value={closesDate}
-                  onChange={(e) => setClosesDate(e.target.value)}
-                  className="bg-transparent border-none focus:ring-0 text-sm font-medium text-gray-700"
-                />
               </div>
             </div>
           </div>
@@ -780,21 +842,21 @@ export default function AdvancedReport() {
                 <Wallet size={18} />
                 <span className="text-white/80 text-sm">Total Cortes</span>
               </div>
-              <p className="text-2xl font-bold">{cashCloses.length}</p>
+              <p className="text-2xl font-bold">{filteredCashCloses.length}</p>
             </div>
             <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl text-white">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign size={18} />
                 <span className="text-white/80 text-sm">Efectivo Total</span>
               </div>
-              <p className="text-2xl font-bold">{formatCurrency(cashCloses.reduce((sum, c) => sum + (c.cashAmount || 0), 0))}</p>
+              <p className="text-2xl font-bold">{formatCurrency(filteredCashCloses.reduce((sum, c) => sum + (c.cashAmount || 0), 0))}</p>
             </div>
             <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-4 rounded-2xl text-white">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp size={18} />
                 <span className="text-white/80 text-sm">Ventas Reportadas</span>
               </div>
-              <p className="text-2xl font-bold">{formatCurrency(cashCloses.reduce((sum, c) => sum + (c.totalSales || 0), 0))}</p>
+              <p className="text-2xl font-bold">{formatCurrency(filteredCashCloses.reduce((sum, c) => sum + (c.totalSales || 0), 0))}</p>
             </div>
             <div className="bg-gradient-to-br from-orange-500 to-red-500 p-4 rounded-2xl text-white">
               <div className="flex items-center gap-2 mb-2">
@@ -802,7 +864,7 @@ export default function AdvancedReport() {
                 <span className="text-white/80 text-sm">A Destiempo</span>
               </div>
               <p className="text-2xl font-bold">
-                {cashCloses.filter(close => {
+                {filteredCashCloses.filter(close => {
                   const closeTypeSchedule = { 'morning': 12, 'afternoon': 16, 'evening': 20 };
                   const scheduledHour = closeTypeSchedule[close.closeType];
                   if (!scheduledHour) return false;
@@ -817,7 +879,7 @@ export default function AdvancedReport() {
           {/* Closes by Store */}
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {stores.map(store => {
-              const storeCloses = cashCloses.filter(c => c.storeId === store.id);
+              const storeCloses = filteredCashCloses.filter(c => c.storeId === store.id);
               
               return (
                 <div key={store.id} className="bg-white rounded-2xl shadow-md overflow-hidden">
@@ -869,7 +931,12 @@ export default function AdvancedReport() {
                                   ) : (
                                     <AlertCircle size={14} className="text-orange-500" />
                                   )}
-                                  <span className="font-medium text-gray-800 text-sm">{closeTypeInfo.name}</span>
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-gray-800 text-sm">{closeTypeInfo.name}</span>
+                                    <span className="text-xs text-gray-500">
+                                      {closeTime.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </span>
+                                  </div>
                                   {!isOnTime && (
                                     <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">A destiempo</span>
                                   )}
@@ -914,21 +981,21 @@ export default function AdvancedReport() {
                 <Users2 size={20} />
                 <span className="text-white/80 text-sm">Total Clientes</span>
               </div>
-              <p className="text-3xl font-bold">{clientStats.total}</p>
+              <p className="text-3xl font-bold">{filteredClientStats.total}</p>
             </div>
             <div className="bg-gradient-to-br from-yellow-500 to-orange-500 p-5 rounded-2xl shadow-lg text-white">
               <div className="flex items-center gap-2 mb-2">
                 <Star size={20} />
                 <span className="text-white/80 text-sm">Clientes VIP</span>
               </div>
-              <p className="text-3xl font-bold">{clientStats.vip}</p>
+              <p className="text-3xl font-bold">{filteredClientStats.vip}</p>
             </div>
             <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-5 rounded-2xl shadow-lg text-white">
               <div className="flex items-center gap-2 mb-2">
                 <UserPlus size={20} />
                 <span className="text-white/80 text-sm">Nuevos Este Mes</span>
               </div>
-              <p className="text-3xl font-bold">{clientStats.newThisMonth}</p>
+              <p className="text-3xl font-bold">{filteredClientStats.newThisMonth}</p>
             </div>
             <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-5 rounded-2xl shadow-lg text-white">
               <div className="flex items-center gap-2 mb-2">
@@ -936,7 +1003,7 @@ export default function AdvancedReport() {
                 <span className="text-white/80 text-sm">% Clientes VIP</span>
               </div>
               <p className="text-3xl font-bold">
-                {clientStats.total > 0 ? Math.round((clientStats.vip / clientStats.total) * 100) : 0}%
+                {filteredClientStats.total > 0 ? Math.round((filteredClientStats.vip / filteredClientStats.total) * 100) : 0}%
               </p>
             </div>
           </div>
@@ -951,11 +1018,11 @@ export default function AdvancedReport() {
                 </h3>
               </div>
               <div className="p-5">
-                {clientStats.topClients.length === 0 ? (
+                {filteredClientStats.topClients.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">Sin clientes registrados</p>
                 ) : (
                   <div className="space-y-3">
-                    {clientStats.topClients.map((client, idx) => (
+                    {filteredClientStats.topClients.map((client, idx) => (
                       <div key={client.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                         <div className="flex items-center gap-3">
                           <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -993,11 +1060,11 @@ export default function AdvancedReport() {
                 </h3>
               </div>
               <div className="p-5">
-                {clientStats.topRegistrars.length === 0 ? (
+                {filteredClientStats.topRegistrars.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">Sin datos</p>
                 ) : (
                   <div className="space-y-3">
-                    {clientStats.topRegistrars.map((registrar, idx) => (
+                    {filteredClientStats.topRegistrars.map((registrar, idx) => (
                       <div key={registrar.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                         <div className="flex items-center gap-3">
                           <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -1034,11 +1101,11 @@ export default function AdvancedReport() {
               </h3>
             </div>
             <div className="p-5">
-              {clientStats.byStore.length === 0 ? (
+              {filteredClientStats.byStore.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">Sin datos</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {clientStats.byStore.map((store, idx) => (
+                  {filteredClientStats.byStore.map((store, idx) => (
                     <div key={store.name} className="bg-gray-50 rounded-xl p-4">
                       <div className="flex items-center justify-between mb-3">
                         <p className="font-semibold text-gray-800">{store.name}</p>
@@ -1072,42 +1139,42 @@ export default function AdvancedReport() {
                 <PackageOpen size={18} />
               </div>
               <p className="text-white/80 text-xs">Total</p>
-              <p className="text-2xl font-bold">{apartadoStats.total}</p>
+              <p className="text-2xl font-bold">{filteredApartadoStats.total}</p>
             </div>
             <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl shadow-lg text-white">
               <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
                 <Clock size={18} />
               </div>
               <p className="text-white/80 text-xs">Activos</p>
-              <p className="text-2xl font-bold">{apartadoStats.active}</p>
+              <p className="text-2xl font-bold">{filteredApartadoStats.active}</p>
             </div>
             <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl shadow-lg text-white">
               <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
                 <CheckCircle size={18} />
               </div>
               <p className="text-white/80 text-xs">Completados</p>
-              <p className="text-2xl font-bold">{apartadoStats.completed}</p>
+              <p className="text-2xl font-bold">{filteredApartadoStats.completed}</p>
             </div>
             <div className="bg-gradient-to-br from-red-500 to-rose-600 p-4 rounded-2xl shadow-lg text-white">
               <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
                 <AlertCircle size={18} />
               </div>
               <p className="text-white/80 text-xs">Vencidos</p>
-              <p className="text-2xl font-bold">{apartadoStats.expired}</p>
+              <p className="text-2xl font-bold">{filteredApartadoStats.expired}</p>
             </div>
             <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-4 rounded-2xl shadow-lg text-white">
               <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
                 <DollarSign size={18} />
               </div>
               <p className="text-white/80 text-xs">Cobrado</p>
-              <p className="text-xl font-bold">{formatCurrency(apartadoStats.totalCollected)}</p>
+              <p className="text-xl font-bold">{formatCurrency(filteredApartadoStats.totalCollected)}</p>
             </div>
             <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-2xl shadow-lg text-white">
               <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
                 <TrendingUp size={18} />
               </div>
               <p className="text-white/80 text-xs">Por Cobrar</p>
-              <p className="text-xl font-bold">{formatCurrency(apartadoStats.totalPending)}</p>
+              <p className="text-xl font-bold">{formatCurrency(filteredApartadoStats.totalPending)}</p>
             </div>
           </div>
 
@@ -1120,7 +1187,7 @@ export default function AdvancedReport() {
               </h3>
             </div>
             <div className="p-5">
-              {apartadoStats.byStore.length === 0 ? (
+              {filteredApartadoStats.byStore.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">Sin apartados registrados</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -1136,7 +1203,7 @@ export default function AdvancedReport() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {apartadoStats.byStore.map(store => (
+                      {filteredApartadoStats.byStore.map(store => (
                         <tr key={store.storeId} className="hover:bg-gray-50">
                           <td className="px-4 py-3 font-medium text-gray-800">{store.storeName}</td>
                           <td className="px-4 py-3 text-center font-bold">{store.total}</td>
@@ -1162,11 +1229,11 @@ export default function AdvancedReport() {
                     <tfoot className="bg-gray-50 font-bold">
                       <tr>
                         <td className="px-4 py-3 rounded-l-lg">TOTAL</td>
-                        <td className="px-4 py-3 text-center">{apartadoStats.total}</td>
-                        <td className="px-4 py-3 text-center text-blue-600">{apartadoStats.active}</td>
-                        <td className="px-4 py-3 text-center text-green-600">{apartadoStats.completed}</td>
-                        <td className="px-4 py-3 text-center text-orange-600">{formatCurrency(apartadoStats.totalPending)}</td>
-                        <td className="px-4 py-3 text-center text-green-600 rounded-r-lg">{formatCurrency(apartadoStats.totalCollected)}</td>
+                        <td className="px-4 py-3 text-center">{filteredApartadoStats.total}</td>
+                        <td className="px-4 py-3 text-center text-blue-600">{filteredApartadoStats.active}</td>
+                        <td className="px-4 py-3 text-center text-green-600">{filteredApartadoStats.completed}</td>
+                        <td className="px-4 py-3 text-center text-orange-600">{formatCurrency(filteredApartadoStats.totalPending)}</td>
+                        <td className="px-4 py-3 text-center text-green-600 rounded-r-lg">{formatCurrency(filteredApartadoStats.totalCollected)}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -1184,11 +1251,11 @@ export default function AdvancedReport() {
               </h3>
             </div>
             <div className="p-5">
-              {apartadoStats.allApartados.filter(a => a.status === 'active').length === 0 ? (
+              {filteredApartadoStats.allApartados.filter(a => a.status === 'active').length === 0 ? (
                 <p className="text-gray-500 text-center py-8">Sin apartados activos</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {apartadoStats.allApartados.filter(a => a.status === 'active').slice(0, 9).map(apt => {
+                  {filteredApartadoStats.allApartados.filter(a => a.status === 'active').slice(0, 9).map(apt => {
                     const dueDate = apt.dueDate?.toDate ? apt.dueDate.toDate() : new Date(apt.dueDate);
                     const daysLeft = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
                     const progress = apt.total > 0 ? ((apt.depositPaid / apt.total) * 100).toFixed(0) : 0;

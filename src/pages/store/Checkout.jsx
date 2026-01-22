@@ -207,6 +207,12 @@ export default function Checkout() {
       return;
     }
 
+    const phoneExists = clients.some(c => c.phone === newClientData.phone.trim());
+    if (phoneExists) {
+      alert('El número de teléfono ya está registrado con otro cliente.');
+      return;
+    }
+
     try {
       setSavingClient(true);
       const currentMonth = new Date().toISOString().slice(0, 7);

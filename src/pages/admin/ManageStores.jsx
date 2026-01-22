@@ -244,7 +244,10 @@ function StoreDetailView({ store, onBack, onUpdate }) {
       setFormData({
         name: fullStore?.name || store.name || '',
         address: fullStore?.address || store.address || '',
-        phone: fullStore?.phone || ''
+        phone: fullStore?.phone || '',
+        ticketFooter: fullStore?.ticketFooter || '¡Gracias por su compra!',
+        paymentsAccepted: fullStore?.paymentsAccepted || { cash: true, card: true, transfer: true },
+        bank: fullStore?.bank || { Bank: '', CLABE: '', Tarjeta: '' }
       });
       
       // Get sales for the last 30 days
@@ -320,15 +323,26 @@ function StoreDetailView({ store, onBack, onUpdate }) {
       return d >= monthStart;
     });
     
-    // Payment methods
+    // Helper to calculate total from sales list, excluding returns
+    const calculateTotal = (salesList) => {
+      return salesList
+        .filter(s => s.status !== 'returned')
+        .reduce((sum, s) => sum + (s.total || 0), 0);
+    };
+
+    const todayTotal = calculateTotal(todaySales);
+    const weekTotal = calculateTotal(weekSales);
+    const monthTotal = calculateTotal(monthSales);
+    
+    // Payment methods (exclude returns)
     const paymentMethods = { cash: 0, card: 0, transfer: 0 };
-    sales.forEach(s => {
+    sales.filter(s => s.status !== 'returned').forEach(s => {
       paymentMethods[s.paymentMethod || 'cash'] += s.total || 0;
     });
     
     // Top products
     const productCounts = {};
-    sales.forEach(sale => {
+    sales.filter(s => s.status !== 'returned').forEach(sale => {
       (sale.items || []).forEach(item => {
         const name = item.name || 'Producto';
         if (!productCounts[name]) {
@@ -345,7 +359,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
     
     // Categories
     const categories = {};
-    sales.forEach(sale => {
+    sales.filter(s => s.status !== 'returned').forEach(sale => {
       (sale.items || []).forEach(item => {
         const cat = item.category || 'Sin categoría';
         categories[cat] = (categories[cat] || 0) + (item.finalPrice || item.price * (item.quantity || 1));
@@ -354,7 +368,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
     
     // Top sellers
     const sellerStats = {};
-    sales.forEach(sale => {
+    sales.filter(s => s.status !== 'returned').forEach(sale => {
       const name = sale.userName || 'Cajero';
       if (!sellerStats[name]) {
         sellerStats[name] = { name, sales: 0, transactions: 0 };
@@ -368,10 +382,10 @@ function StoreDetailView({ store, onBack, onUpdate }) {
       .slice(0, 5);
     
     return {
-      today: { total: todaySales.reduce((sum, s) => sum + (s.total || 0), 0), count: todaySales.length },
-      week: { total: weekSales.reduce((sum, s) => sum + (s.total || 0), 0), count: weekSales.length },
-      month: { total: monthSales.reduce((sum, s) => sum + (s.total || 0), 0), count: monthSales.length },
-      avgTicket: sales.length > 0 ? sales.reduce((sum, s) => sum + (s.total || 0), 0) / sales.length : 0,
+      today: { total: todayTotal, count: todaySales.filter(s => s.status !== 'returned').length },
+      week: { total: weekTotal, count: weekSales.filter(s => s.status !== 'returned').length },
+      month: { total: monthTotal, count: monthSales.filter(s => s.status !== 'returned').length },
+      avgTicket: sales.filter(s => s.status !== 'returned').length > 0 ? calculateTotal(sales) / sales.filter(s => s.status !== 'returned').length : 0,
       paymentMethods,
       topProducts,
       categories: Object.entries(categories).sort((a, b) => b[1] - a[1]).slice(0, 5),
@@ -398,7 +412,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
       const daySales = sales
         .filter(s => {
           const saleDate = s.date?.toDate ? s.date.toDate() : new Date(s.date);
-          return saleDate >= d && saleDate < nextD;
+          return saleDate >= d && saleDate < nextD && s.status !== 'returned';
         })
         .reduce((sum, s) => sum + (s.total || 0), 0);
       
@@ -421,6 +435,26 @@ function StoreDetailView({ store, onBack, onUpdate }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handlePaymentToggle = (method) => {
+    setFormData(prev => ({
+      ...prev,
+      paymentsAccepted: {
+        ...prev.paymentsAccepted,
+        [method]: !prev.paymentsAccepted[method]
+      }
+    }));
+  };
+
+  const handleBankChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      bank: {
+        ...prev.bank,
+        [field]: value
+      }
+    }));
   };
 
   const tabs = [
@@ -704,16 +738,21 @@ function StoreDetailView({ store, onBack, onUpdate }) {
           {/* Stats Summary */}
           {(() => {
             // Calculate payment breakdown for the day
-            const dayPaymentBreakdown = daySales.reduce((acc, sale) => {
+            const dayPaymentBreakdown = daySales
+              .filter(s => s.status !== 'returned')
+              .reduce((acc, sale) => {
               const method = sale.paymentMethod || 'cash';
               acc[method] = (acc[method] || 0) + (sale.total || 0);
               return acc;
             }, {});
             
             // Calculate total card commission (4% on card sales, stored in each sale)
-            const totalCardCommission = daySales.reduce((sum, sale) => sum + (sale.cardCommission || 0), 0);
+            const totalCardCommission = daySales
+              .filter(s => s.status !== 'returned')
+              .reduce((sum, sale) => sum + (sale.cardCommission || 0), 0);
             
-            const dayTotal = daySales.reduce((sum, s) => sum + (s.total || 0), 0);
+            const activeDaySales = daySales.filter(s => s.status !== 'returned');
+            const dayTotal = activeDaySales.reduce((sum, s) => sum + (s.total || 0), 0);
             
             return (
               <>
@@ -730,7 +769,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
                       <ShoppingBag size={18} />
                     </div>
                     <p className="text-white/80 text-xs">Transacciones</p>
-                    <p className="text-2xl font-bold">{daySales.length}</p>
+                    <p className="text-2xl font-bold">{activeDaySales.length}</p>
                   </div>
                   <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-4 rounded-2xl shadow-lg text-white">
                     <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
@@ -745,7 +784,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
                     </div>
                     <p className="text-white/80 text-xs">Ticket Promedio</p>
                     <p className="text-2xl font-bold">
-                      {daySales.length > 0 ? formatCurrency(dayTotal / daySales.length) : '$0'}
+                      {activeDaySales.length > 0 ? formatCurrency(dayTotal / activeDaySales.length) : '$0'}
                     </p>
                   </div>
                 </div>
@@ -872,17 +911,27 @@ function StoreDetailView({ store, onBack, onUpdate }) {
 
                       return timeline.map((item, idx) => (
                         item.type === 'sale' ? (
-                          <tr key={`sale-${item.data.id || idx}`} className="hover:bg-gray-50">
+                          <tr key={`sale-${item.data.id || idx}`} className={`hover:bg-gray-50 border-l-4 ${item.data.status === 'returned' ? 'bg-red-50 border-red-500' : 'border-transparent'}`}>
                             <td className="px-4 py-3 text-gray-600">
                               {item.date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                              {item.data.status === 'returned' && (
+                                <div className="mt-1">
+                                  <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold uppercase">Devuelto</span>
+                                  {item.data.returnMetadata?.authorizedBy?.name && (
+                                    <span className="block text-[10px] text-red-600 mt-0.5 truncate max-w-[120px]">
+                                      Aut: {item.data.returnMetadata.authorizedBy.name}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
-                            <td className="px-4 py-3 font-medium text-gray-800">
+                            <td className={`px-4 py-3 font-medium text-gray-800 ${item.data.status === 'returned' ? 'opacity-50 line-through' : ''}`}>
                               {item.data.userName || 'Vendedor'}
                             </td>
-                            <td className="px-4 py-3 text-gray-600">
+                            <td className={`px-4 py-3 text-gray-600 ${item.data.status === 'returned' ? 'opacity-50 line-through' : ''}`}>
                               {item.data.customerName || '-'}
                             </td>
-                            <td className="px-4 py-3 text-center">
+                            <td className={`px-4 py-3 text-center ${item.data.status === 'returned' ? 'opacity-50' : ''}`}>
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                 item.data.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' :
                                 item.data.paymentMethod === 'card' ? 'bg-blue-100 text-blue-700' :
@@ -892,7 +941,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
                                  item.data.paymentMethod === 'card' ? 'Tarjeta' : 'Transferencia'}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right font-bold text-gray-800">
+                            <td className={`px-4 py-3 text-right font-bold text-gray-800 ${item.data.status === 'returned' ? 'opacity-50 line-through' : ''}`}>
                               {formatCurrency(item.data.total)}
                             </td>
                           </tr>
@@ -903,6 +952,17 @@ function StoreDetailView({ store, onBack, onUpdate }) {
                             </td>
                             <td className="px-4 py-4 font-bold" colSpan={2}>
                               📋 CORTE • {item.data.userName || item.data.closedByName || 'Usuario'}
+                              {/* Payment breakdown */}
+                              {item.data.paymentBreakdown && (
+                                <div className="text-xs font-normal mt-1 space-y-0.5">
+                                  <span className="block">💵 Efectivo: {formatCurrency(item.data.paymentBreakdown.cash || 0)}</span>
+                                  <span className="block">💳 Tarjeta: {formatCurrency(item.data.paymentBreakdown.card || 0)}</span>
+                                  <span className="block">📱 Transfer: {formatCurrency(item.data.paymentBreakdown.transfer || 0)}</span>
+                                  {(item.data.cardCommission || 0) > 0 && (
+                                    <span className="block text-amber-200">🏦 Comisión: -{formatCurrency(item.data.cardCommission)}</span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-4 text-center">
                               <div className="text-xs">
@@ -915,8 +975,9 @@ function StoreDetailView({ store, onBack, onUpdate }) {
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-4 text-right font-bold text-xl">
-                              {formatCurrency(item.data.cashAmount || 0)}
+                            <td className="px-4 py-4 text-right">
+                              <div className="text-xl font-bold">{formatCurrency(item.data.totalSales || item.data.cashAmount || 0)}</div>
+                              <div className="text-xs text-white/70">Total Ventas</div>
                             </td>
                           </tr>
                         )
@@ -1208,37 +1269,184 @@ function StoreDetailView({ store, onBack, onUpdate }) {
       )}
 
       {activeTab === 'config' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl shadow-md p-5">
-            <h3 className="font-bold text-gray-800 mb-4">Información de la Tienda</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <span className="text-gray-600">Nombre</span>
-                <span className="font-medium">{storeData.name}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <span className="text-gray-600">Dirección</span>
-                <span className="font-medium">{storeData.address || 'No especificada'}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <span className="text-gray-600">Teléfono</span>
-                <span className="font-medium">{storeData.phone || 'No especificado'}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Settings Column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Store Information */}
+            <div className="bg-white rounded-2xl shadow-md p-5">
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Store size={20} className="text-indigo-600" />
+                Información de la Tienda
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la Tienda</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="55 1234 5678"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                  <input
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Calle, Número, Colonia"
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Payment Methods */}
+            <div className="bg-white rounded-2xl shadow-md p-5">
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <CreditCard size={20} className="text-indigo-600" />
+                Métodos de Pago Aceptados
+              </h3>
+              <div className="grid grid-cols-3 gap-4">
+                <button
+                  type="button"
+                  onClick={() => handlePaymentToggle('cash')}
+                  className={`p-4 rounded-xl border-2 transition flex flex-col items-center gap-2 ${
+                    formData.paymentsAccepted?.cash 
+                      ? 'border-green-500 bg-green-50' 
+                      : 'border-gray-200 bg-gray-50 opacity-50'
+                  }`}
+                >
+                  <Banknote size={28} className={formData.paymentsAccepted?.cash ? 'text-green-600' : 'text-gray-400'} />
+                  <span className="font-medium">Efectivo</span>
+                  {formData.paymentsAccepted?.cash && <Badge variant="success">Activo</Badge>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePaymentToggle('card')}
+                  className={`p-4 rounded-xl border-2 transition flex flex-col items-center gap-2 ${
+                    formData.paymentsAccepted?.card 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 bg-gray-50 opacity-50'
+                  }`}
+                >
+                  <CreditCard size={28} className={formData.paymentsAccepted?.card ? 'text-blue-600' : 'text-gray-400'} />
+                  <span className="font-medium">Tarjeta</span>
+                  {formData.paymentsAccepted?.card && <Badge variant="info">Activo</Badge>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePaymentToggle('transfer')}
+                  className={`p-4 rounded-xl border-2 transition flex flex-col items-center gap-2 ${
+                    formData.paymentsAccepted?.transfer 
+                      ? 'border-yellow-500 bg-yellow-50' 
+                      : 'border-gray-200 bg-gray-50 opacity-50'
+                  }`}
+                >
+                  <ArrowRightLeft size={28} className={formData.paymentsAccepted?.transfer ? 'text-yellow-600' : 'text-gray-400'} />
+                  <span className="font-medium">Transferencia</span>
+                  {formData.paymentsAccepted?.transfer && <Badge variant="warning">Activo</Badge>}
+                </button>
+              </div>
+              
+              {/* Bank Details */}
+              {formData.paymentsAccepted?.transfer && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Datos Bancarios (para transferencias)</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Banco</label>
+                      <input
+                        type="text"
+                        value={formData.bank?.Bank || ''}
+                        onChange={(e) => handleBankChange('Bank', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500"
+                        placeholder="BBVA, Santander..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">CLABE</label>
+                      <input
+                        type="text"
+                        value={formData.bank?.CLABE || ''}
+                        onChange={(e) => handleBankChange('CLABE', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500"
+                        placeholder="18 dígitos"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Número de Tarjeta</label>
+                      <input
+                        type="text"
+                        value={formData.bank?.Tarjeta || ''}
+                        onChange={(e) => handleBankChange('Tarjeta', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500"
+                        placeholder="1234 5678 9012 3456"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={handleSave} disabled={saving} size="lg" icon={<CheckCircle size={18} />}>
+                {saving ? 'Guardando...' : 'Guardar Configuración'}
+              </Button>
+            </div>
           </div>
-          
-          <div className="bg-white rounded-2xl shadow-md p-5">
-            <h3 className="font-bold text-gray-800 mb-4">Métodos de Pago Aceptados</h3>
-            <div className="flex gap-3">
-              {storeData.paymentsAccepted?.cash !== false && (
-                <Badge variant="success">Efectivo</Badge>
-              )}
-              {storeData.paymentsAccepted?.card !== false && (
-                <Badge variant="info">Tarjeta</Badge>
-              )}
-              {storeData.paymentsAccepted?.transfer !== false && (
-                <Badge variant="warning">Transferencia</Badge>
-              )}
+
+          {/* Ticket Preview Column */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl shadow-md p-5 sticky top-6">
+              <h3 className="font-bold text-gray-800 mb-4">Vista Previa del Ticket</h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mensaje de Agradecimiento
+                </label>
+                <input
+                  type="text"
+                  value={formData.ticketFooter}
+                  onChange={(e) => setFormData(prev => ({ ...prev, ticketFooter: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-indigo-500"
+                  placeholder="¡Gracias por su compra!"
+                />
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-xl border-2 border-dashed border-gray-300 font-mono text-xs text-gray-800 shadow-sm">
+                <p className="text-center font-bold text-sm">** {formData.name || 'Mi Tienda'} **</p>
+                <p className="text-center text-gray-600">{formData.address || 'Dirección'}</p>
+                <p className="text-center text-gray-600">Tel: {formData.phone || '---'}</p>
+                <hr className="border-dashed border-gray-300 my-2" />
+                <p className="text-gray-600">Cajero: Ana García</p>
+                <p className="text-gray-600">Fecha: {new Date().toLocaleDateString('es-MX')}</p>
+                <hr className="border-dashed border-gray-300 my-2" />
+                <div className="flex justify-between">
+                  <span>1x Camisa Casual</span>
+                  <span>$299.99</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>2x Pantalón</span>
+                  <span>$1,099.00</span>
+                </div>
+                <hr className="border-dashed border-gray-300 my-2" />
+                <div className="flex justify-between font-bold">
+                  <span>TOTAL:</span>
+                  <span>$1,398.99</span>
+                </div>
+                <hr className="border-dashed border-gray-300 my-2" />
+                <p className="text-center mt-2 text-gray-600">{formData.ticketFooter}</p>
+              </div>
             </div>
           </div>
         </div>

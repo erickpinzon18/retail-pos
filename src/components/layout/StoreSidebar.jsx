@@ -95,7 +95,7 @@ export default function StoreSidebar() {
         id: 'cashLimit',
         type: 'danger',
         title: 'Hacer corte de caja',
-        message: `$${currentCash.toFixed(0)} en caja (límite $${CASH_LIMIT})`,
+        message: `Límite de caja alcanzado (límite $${CASH_LIMIT})`,
         icon: DollarSign,
         link: '/store/sales'
       });
@@ -250,19 +250,7 @@ export default function StoreSidebar() {
 
       {/* Settings and Logout */}
       <div className="px-3 py-3 border-t border-gray-100 space-y-1">
-        <NavLink
-          to="/store/config"
-          className={({ isActive }) =>
-            `flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
-              isActive
-                ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            }`
-          }
-        >
-          <Settings size={18} />
-          <span className="text-sm">Configuración</span>
-        </NavLink>
+
         <button
           onClick={handleLogout}
           className="flex items-center space-x-3 px-3 py-2.5 text-red-500 hover:bg-red-50 rounded-xl w-full transition-all duration-200"

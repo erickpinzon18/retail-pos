@@ -52,6 +52,238 @@ export const remove = async (collectionName, id) => {
   await deleteDoc(doc(db, collectionName, id));
 };
 
+// =====================
+// SESSION LOGGING
+// =====================
+
+/**
+ * Log user session start with metadata
+ * Requests geolocation permission - required for login
+ */
+/**
+ * Log user session start with metadata
+ * Requests geolocation permission - required for login
+ */
+export const logSessionStart = async (userProfile, status = 'success', failureReason = null) => {
+  try {
+    // Request geolocation permission (MANDATORY)
+    const position = await new Promise((resolve, reject) => {
+      // ... same permission logic, simplified for brevity in replacement ...
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocalización no disponible en este navegador'));
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        (error) => {
+          let message = 'Debe permitir el acceso a su ubicación para iniciar sesión.';
+          if (error.code === error.PERMISSION_DENIED) {
+            message = 'Permiso de ubicación denegado. Debe permitir el acceso para continuar.';
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            message = 'Ubicación no disponible. Verifique su GPS.';
+          } else if (error.code === error.TIMEOUT) {
+            message = 'Tiempo de espera agotado. Intente nuevamente.';
+          }
+          reject(new Error(message));
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    });
+    
+    // Collect device and browser information
+    const sessionData = {
+      userId: userProfile.uid,
+      userName: userProfile.name || 'Unknown',
+      userEmail: userProfile.email || '',
+      userRole: userProfile.role || 'seller',
+      userType: userProfile.type || null,
+      storeId: userProfile.storeId || null,
+      timestamp: Timestamp.now(),
+      status, // 'success' or 'failed'
+      failureReason, // null or string reason
+      
+      // Exact GPS location
+      location: {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy, // meters
+        altitude: position.coords.altitude,
+        altitudeAccuracy: position.coords.altitudeAccuracy,
+        heading: position.coords.heading,
+        speed: position.coords.speed
+      },
+      
+      // Browser/Device info
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language,
+      screenResolution: `${screen.width}x${screen.height}`,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      
+      // Will be populated with IP
+      ipAddress: null,
+      ipLocation: null // Keep IP location separate from GPS location
+    };
+    
+    // Try to get IP address from external API (non-blocking)
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      sessionData.ipAddress = data.ip;
+      
+      // Try to get location from IP for comparison
+      try {
+        const geoResponse = await fetch(`https://ipapi.co/${data.ip}/json/`);
+        const geoData = await geoResponse.json();
+        sessionData.ipLocation = {
+          city: geoData.city,
+          region: geoData.region,
+          country: geoData.country_name
+        };
+      } catch (geoError) {
+        console.warn('Could not fetch IP geolocation:', geoError);
+      }
+    } catch (ipError) {
+      console.warn('Could not fetch IP address:', ipError);
+    }
+    
+    // Store session log
+    await addDoc(collection(db, 'sessionLogs'), sessionData);
+    
+    return sessionData;
+  } catch (error) {
+    // For geolocation errors, we MUST throw - it's mandatory
+    if (error.message && error.message.includes('ubicación')) {
+      throw error;
+    }
+    console.error('Error logging session:', error);
+    throw new Error('Error al registrar la sesión. Intente nuevamente.');
+  }
+};
+
+// =====================
+// SUPER TOKEN SYSTEM
+// =====================
+
+/**
+ * Generate a new super token for returns
+ * Valid for 5 minutes
+ */
+export const generateSuperToken = async (adminUser) => {
+  // Generate 6-digit random code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  const expirationDate = new Date();
+  expirationDate.setMinutes(expirationDate.getMinutes() + 5);
+  
+  const tokenData = {
+    code,
+    createdAt: Timestamp.now(),
+    expiresAt: Timestamp.fromDate(expirationDate),
+    createdBy: {
+      uid: adminUser.uid,
+      name: adminUser.name || 'Admin',
+      email: adminUser.email
+    },
+    status: 'active',
+    type: 'return'
+  };
+  
+  await addDoc(collection(db, 'tokens'), tokenData);
+  return tokenData;
+};
+
+/**
+ * Validate and mark token as used
+ */
+export const validateAndUseToken = async (code, user) => {
+  const q = query(
+    collection(db, 'tokens'),
+    where('code', '==', code),
+    where('status', '==', 'active'),
+    limit(1)
+  );
+  
+  const snapshot = await getDocs(q);
+  
+  if (snapshot.empty) {
+    throw new Error('Token inválido o expirado');
+  }
+  
+  const tokenDoc = snapshot.docs[0];
+  const tokenData = tokenDoc.data();
+  
+  // Check expiration
+  const now = new Date();
+  const expiresAt = tokenData.expiresAt.toDate();
+  
+  if (now > expiresAt) {
+    await updateDoc(doc(db, 'tokens', tokenDoc.id), { status: 'expired' });
+    throw new Error('El token ha expirado. Solicite uno nuevo.');
+  }
+  
+  // Mark as used
+  await updateDoc(doc(db, 'tokens', tokenDoc.id), {
+    status: 'used',
+    usedBy: {
+      uid: user.uid,
+      name: user.name || 'Usuario',
+      email: user.email
+    },
+    usedAt: Timestamp.now()
+  });
+  
+  return { id: tokenDoc.id, ...tokenData };
+};
+
+/**
+ * Process a full return for a sale
+ */
+export const processReturn = async (sale, tokenUsed, user) => {
+  // 1. Update Sale
+  const saleRef = doc(db, 'sales', sale.id);
+  await updateDoc(saleRef, {
+    status: 'returned',
+    returnMetadata: {
+      returnedAt: Timestamp.now(),
+      returnedBy: {
+        uid: user.uid,
+        name: user.name
+      },
+      authorizedBy: tokenUsed.createdBy, // Admin who generated token
+      tokenCode: tokenUsed.code,
+      reason: 'Devolución autorizada'
+    }
+  });
+  
+  // 2. Return items to inventory
+  for (const item of (sale.items || [])) {
+    if (item.productId) {
+      const productRef = doc(db, 'products', item.productId);
+      const productDoc = await getDoc(productRef);
+      
+      if (productDoc.exists()) {
+        const currentStock = productDoc.data().currentStock || 0;
+        await updateDoc(productRef, {
+          currentStock: currentStock + (item.quantity || 1)
+        });
+      }
+    }
+  }
+  
+  // 3. Create negative transaction for cash adjustment if needed
+  // This logic is handled by sales status in reports usually, 
+  // but if you have a separate transactions collection, add it here.
+  // For now, reports should filter out 'returned' status or handle negative values.
+  
+  return true;
+};
+
 // Query helpers
 
 export const getByStoreId = async (collectionName, storeId) => {
@@ -428,6 +660,30 @@ export const getClientMonthlyPurchases = async (clientId) => {
  */
 export const getClientMonthlyTotal = async (clientId) => {
   const purchases = await getClientMonthlyPurchases(clientId);
+  return purchases.reduce((sum, p) => sum + (p.total || 0), 0);
+};
+
+/**
+ * Get client purchases within a date range
+ */
+export const getClientPurchasesByDateRange = async (clientId, startDate, endDate) => {
+  const purchasesRef = collection(db, 'clients', clientId, 'purchases');
+  const q = query(
+    purchasesRef, 
+    where('createdAt', '>=', Timestamp.fromDate(startDate)),
+    where('createdAt', '<=', Timestamp.fromDate(endDate)),
+    orderBy('createdAt', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+/**
+ * Calculate client's total from purchases within a date range
+ */
+export const getClientTotalByDateRange = async (clientId, startDate, endDate) => {
+  const purchases = await getClientPurchasesByDateRange(clientId, startDate, endDate);
   return purchases.reduce((sum, p) => sum + (p.total || 0), 0);
 };
 

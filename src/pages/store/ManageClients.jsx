@@ -347,6 +347,30 @@ export default function ManageClients() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate duplicates
+    const phoneExists = clients.some(c => 
+      c.phone === formData.phone.trim() && 
+      c.id !== selectedClient?.id
+    );
+    
+    if (phoneExists) {
+      alert('El número de teléfono ya está registrado con otro cliente.');
+      return;
+    }
+
+    if (formData.email.trim()) {
+      const emailExists = clients.some(c => 
+        c.email && 
+        c.email.trim() === formData.email.trim() && 
+        c.id !== selectedClient?.id
+      );
+      
+      if (emailExists) {
+        alert('El correo electrónico ya está registrado con otro cliente.');
+        return;
+      }
+    }
+    
     try {
       setSaving(true);
       
