@@ -183,6 +183,12 @@ function StoreDetailView({ store, onBack, onUpdate }) {
   const [saving, setSaving] = useState(false);
   const [storeClients, setStoreClients] = useState([]);
   const [storeApartados, setStoreApartados] = useState([]);
+  const [salesDate, setSalesDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+  const [daySales, setDaySales] = useState([]);
+  const [dayCashCloses, setDayCashCloses] = useState([]);
   
   const [formData, setFormData] = useState({
     name: store.name || '',
@@ -198,12 +204,33 @@ function StoreDetailView({ store, onBack, onUpdate }) {
     fetchCashCloses();
   }, [store.id, closesDate]);
 
+  useEffect(() => {
+    fetchDaySalesAndCloses();
+  }, [store.id, salesDate]);
+
   const fetchCashCloses = async () => {
     try {
       const closes = await getCashClosesForDate(store.id, closesDate);
       setCashCloses(closes);
     } catch (error) {
       console.error('Error fetching cash closes:', error);
+    }
+  };
+
+  const fetchDaySalesAndCloses = async () => {
+    try {
+      // Parse date string properly for local timezone
+      const [year, month, day] = salesDate.split('-').map(Number);
+      const dateStart = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const dateEnd = new Date(year, month - 1, day, 23, 59, 59, 999);
+      
+      const salesData = await getSalesByDateRange(store.id, dateStart, dateEnd);
+      setDaySales(salesData);
+      
+      const closesData = await getCashClosesForDate(store.id, salesDate);
+      setDayCashCloses(closesData);
+    } catch (error) {
+      console.error('Error fetching day sales:', error);
     }
   };
 
@@ -398,6 +425,7 @@ function StoreDetailView({ store, onBack, onUpdate }) {
 
   const tabs = [
     { id: 'stats', label: 'Estadísticas', icon: BarChart2 },
+    { id: 'ventas', label: 'Ventas', icon: DollarSign },
     { id: 'products', label: 'Productos', icon: ShoppingBag },
     { id: 'sellers', label: 'Vendedores', icon: Users },
     { id: 'clients', label: 'Clientes', icon: Users2 },
@@ -645,6 +673,257 @@ function StoreDetailView({ store, onBack, onUpdate }) {
                     );
                   })}
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ventas Tab - Sales Timeline */}
+      {activeTab === 'ventas' && (
+        <div className="space-y-6">
+          {/* Date Selector */}
+          <div className="bg-white rounded-2xl shadow-md p-5">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+              <div>
+                <h3 className="font-bold text-gray-800 text-lg">Timeline de Ventas</h3>
+                <p className="text-sm text-gray-500">Ventas y cortes ordenados por hora</p>
+              </div>
+              <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-xl">
+                <Calendar size={16} className="text-gray-400" />
+                <input 
+                  type="date" 
+                  value={salesDate}
+                  onChange={(e) => setSalesDate(e.target.value)}
+                  className="bg-transparent border-none focus:ring-0 text-sm font-medium text-gray-700"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Summary */}
+          {(() => {
+            // Calculate payment breakdown for the day
+            const dayPaymentBreakdown = daySales.reduce((acc, sale) => {
+              const method = sale.paymentMethod || 'cash';
+              acc[method] = (acc[method] || 0) + (sale.total || 0);
+              return acc;
+            }, {});
+            
+            // Calculate total card commission (4% on card sales, stored in each sale)
+            const totalCardCommission = daySales.reduce((sum, sale) => sum + (sale.cardCommission || 0), 0);
+            
+            const dayTotal = daySales.reduce((sum, s) => sum + (s.total || 0), 0);
+            
+            return (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl shadow-lg text-white">
+                    <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                      <DollarSign size={18} />
+                    </div>
+                    <p className="text-white/80 text-xs">Ventas del Día</p>
+                    <p className="text-2xl font-bold">{formatCurrency(dayTotal)}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl shadow-lg text-white">
+                    <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                      <ShoppingBag size={18} />
+                    </div>
+                    <p className="text-white/80 text-xs">Transacciones</p>
+                    <p className="text-2xl font-bold">{daySales.length}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-4 rounded-2xl shadow-lg text-white">
+                    <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                      <Wallet size={18} />
+                    </div>
+                    <p className="text-white/80 text-xs">Cortes Realizados</p>
+                    <p className="text-2xl font-bold">{dayCashCloses.length}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-500 to-amber-600 p-4 rounded-2xl shadow-lg text-white">
+                    <div className="p-2 bg-white/20 rounded-xl w-fit mb-2">
+                      <TrendingUp size={18} />
+                    </div>
+                    <p className="text-white/80 text-xs">Ticket Promedio</p>
+                    <p className="text-2xl font-bold">
+                      {daySales.length > 0 ? formatCurrency(dayTotal / daySales.length) : '$0'}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Payment Method Breakdown */}
+                <div className="bg-white rounded-2xl shadow-md p-5">
+                  <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <Wallet size={18} className="text-indigo-500" />
+                    Desglose por Método de Pago
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">💵</span>
+                        <p className="text-sm text-gray-600">Efectivo</p>
+                      </div>
+                      <p className="text-xl font-bold text-green-700">{formatCurrency(dayPaymentBreakdown.cash || 0)}</p>
+                    </div>
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">💳</span>
+                        <p className="text-sm text-gray-600">Tarjeta</p>
+                      </div>
+                      <p className="text-xl font-bold text-blue-700">{formatCurrency(dayPaymentBreakdown.card || 0)}</p>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-xl border border-purple-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">📱</span>
+                        <p className="text-sm text-gray-600">Transferencia</p>
+                      </div>
+                      <p className="text-xl font-bold text-purple-700">{formatCurrency(dayPaymentBreakdown.transfer || 0)}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Card Commission Note - Only visible to admin */}
+                  {totalCardCommission > 0 && (
+                    <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-amber-100 rounded-lg">
+                          <CreditCard size={18} className="text-amber-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-amber-800">Comisión por Tarjeta (4%)</p>
+                          <p className="text-2xl font-bold text-amber-700">{formatCurrency(totalCardCommission)}</p>
+                          <p className="text-xs text-amber-600 mt-1">
+                            Esta comisión no está incluida en el total del vendedor
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Diferencias de Cortes - what sellers owe */}
+                  {dayCashCloses.length > 0 && (() => {
+                    const totalDifference = dayCashCloses.reduce((sum, close) => sum + (close.difference || 0), 0);
+                    const hasDifference = Math.abs(totalDifference) >= 0.01;
+                    
+                    return hasDifference ? (
+                      <div className={`mt-4 border rounded-xl p-4 ${totalDifference < 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-lg ${totalDifference < 0 ? 'bg-red-100' : 'bg-green-100'}`}>
+                            <AlertCircle size={18} className={totalDifference < 0 ? 'text-red-600' : 'text-green-600'} />
+                          </div>
+                          <div className="flex-1">
+                            <p className={`font-medium ${totalDifference < 0 ? 'text-red-800' : 'text-green-800'}`}>
+                              {totalDifference < 0 ? 'Diferencia Negativa (Faltante)' : 'Diferencia Positiva (Sobrante)'}
+                            </p>
+                            <p className={`text-2xl font-bold ${totalDifference < 0 ? 'text-red-700' : 'text-green-700'}`}>
+                              {totalDifference > 0 ? '+' : ''}{formatCurrency(totalDifference)}
+                            </p>
+                            <p className={`text-xs mt-1 ${totalDifference < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              Suma de diferencias de {dayCashCloses.length} corte(s)
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* Sales Table */}
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <ShoppingBag size={20} className="text-indigo-500" />
+                Ventas del Día
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              {daySales.length === 0 && dayCashCloses.length === 0 ? (
+                <div className="text-center py-12">
+                  <ShoppingBag size={48} className="mx-auto mb-3 text-gray-300" />
+                  <p className="text-gray-500">Sin ventas registradas este día</p>
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="text-left px-4 py-3">Hora</th>
+                      <th className="text-left px-4 py-3">Vendedor</th>
+                      <th className="text-left px-4 py-3">Cliente</th>
+                      <th className="text-center px-4 py-3">Pago</th>
+                      <th className="text-right px-4 py-3">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(() => {
+                      // Merge sales and closes, sort by time
+                      const timeline = [
+                        ...daySales.map(sale => ({
+                          type: 'sale',
+                          date: sale.date?.toDate ? sale.date.toDate() : new Date(sale.date),
+                          data: sale
+                        })),
+                        ...dayCashCloses.map(close => ({
+                          type: 'close',
+                          date: close.createdAt?.toDate ? close.createdAt.toDate() : new Date(close.createdAt),
+                          data: close
+                        }))
+                      ].sort((a, b) => a.date - b.date);
+
+                      return timeline.map((item, idx) => (
+                        item.type === 'sale' ? (
+                          <tr key={`sale-${item.data.id || idx}`} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-600">
+                              {item.date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-gray-800">
+                              {item.data.userName || 'Vendedor'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {item.data.customerName || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                item.data.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' :
+                                item.data.paymentMethod === 'card' ? 'bg-blue-100 text-blue-700' :
+                                'bg-purple-100 text-purple-700'
+                              }`}>
+                                {item.data.paymentMethod === 'cash' ? 'Efectivo' : 
+                                 item.data.paymentMethod === 'card' ? 'Tarjeta' : 'Transferencia'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-gray-800">
+                              {formatCurrency(item.data.total)}
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key={`close-${item.data.id || idx}`} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+                            <td className="px-4 py-4">
+                              {item.date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td className="px-4 py-4 font-bold" colSpan={2}>
+                              📋 CORTE • {item.data.userName || item.data.closedByName || 'Usuario'}
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <div className="text-xs">
+                                <span className="block">Reportado: {formatCurrency(item.data.cashAmount || 0)}</span>
+                                <span className="block text-white/70">Esperado: {formatCurrency(item.data.expectedAmount || 0)}</span>
+                                {item.data.difference !== 0 && (
+                                  <span className={`block font-bold ${item.data.difference > 0 ? 'text-green-300' : 'text-red-300'}`}>
+                                    Dif: {item.data.difference > 0 ? '+' : ''}{formatCurrency(item.data.difference || 0)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-right font-bold text-xl">
+                              {formatCurrency(item.data.cashAmount || 0)}
+                            </td>
+                          </tr>
+                        )
+                      ));
+                    })()}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>

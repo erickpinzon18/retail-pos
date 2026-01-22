@@ -11,13 +11,7 @@ import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { getSalesByStore, getById, getTodayCashCloses, addCashClose } from '../../api/firestoreService';
 
-// Scheduled cash close times
-const SCHEDULED_CLOSES = [
-  { id: 'morning', name: 'Corte Mañana', hour: 12, label: '12:00 PM' },
-  { id: 'afternoon', name: 'Corte Tarde', hour: 16, label: '4:00 PM' },
-  { id: 'evening', name: 'Corte Noche', hour: 20, label: '8:00 PM' },
-];
-
+// Cash limit for triggering corte
 const CASH_LIMIT = 2000;
 
 export default function StoreSales() {
@@ -31,6 +25,8 @@ export default function StoreSales() {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showCashCloseModal, setShowCashCloseModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showCorteConfirmation, setShowCorteConfirmation] = useState(false);
+  const [lastCorteData, setLastCorteData] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
   const [selectedCloseType, setSelectedCloseType] = useState(null);
   const [cashCounted, setCashCounted] = useState('');
@@ -88,13 +84,39 @@ export default function StoreSales() {
     return acc;
   }, {});
 
-  // Calculate current cash in register (minus already closed amounts)
-  const closedCashAmount = cashCloses.reduce((sum, close) => sum + (close.cashAmount || 0), 0);
-  const currentCashInRegister = (paymentBreakdown.cash || 0) - closedCashAmount;
+  // Calculate card commission (4% on card sales)
+  const totalCardCommission = sales.reduce((sum, sale) => sum + (sale.cardCommission || 0), 0);
+  
+  // Net sales = total sales - card commission
+  const netSales = totalSales - totalCardCommission;
+
+  // Calculate current cash in register - only count sales AFTER last corte
+  const lastCorte = cashCloses.length > 0 
+    ? cashCloses.reduce((latest, close) => {
+        const closeDate = close.createdAt?.toDate ? close.createdAt.toDate() : new Date(close.createdAt);
+        const latestDate = latest?.createdAt?.toDate ? latest.createdAt.toDate() : new Date(latest?.createdAt || 0);
+        return closeDate > latestDate ? close : latest;
+      }, cashCloses[0])
+    : null;
+  
+  const lastCorteTime = lastCorte 
+    ? (lastCorte.createdAt?.toDate ? lastCorte.createdAt.toDate() : new Date(lastCorte.createdAt))
+    : null;
+  
+  // Only count cash sales that happened AFTER the last corte
+  const currentCashInRegister = sales.reduce((sum, sale) => {
+    if (sale.paymentMethod !== 'cash') return sum;
+    const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+    // If there's no corte, count all cash sales. If there is, only count sales after it.
+    if (!lastCorteTime || saleDate > lastCorteTime) {
+      return sum + (sale.total || 0);
+    }
+    return sum;
+  }, 0);
 
   const paymentMethods = [
     { method: 'Efectivo', key: 'cash', amount: paymentBreakdown.cash || 0 },
-    { method: 'Tarjeta', key: 'card', amount: paymentBreakdown.card || 0 },
+    { method: 'Tarjeta', key: 'card', amount: paymentBreakdown.card || 0, commission: totalCardCommission },
     { method: 'Transferencia', key: 'transfer', amount: paymentBreakdown.transfer || 0 },
   ].map(pm => ({
     ...pm,
@@ -114,20 +136,6 @@ export default function StoreSales() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([name, sold]) => ({ name, sold }));
-
-  // Determine pending cash closes (30 min grace period)
-  const pendingCloses = useMemo(() => {
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    
-    const completedTypes = cashCloses.map(c => c.closeType);
-    
-    return SCHEDULED_CLOSES.filter(schedule => {
-      const scheduledMinutes = schedule.hour * 60;
-      const gracePeriodEnd = scheduledMinutes + 30; // 30 min después de la hora
-      return currentMinutes >= gracePeriodEnd && !completedTypes.includes(schedule.id);
-    });
-  }, [cashCloses]);
 
   // Check if cash limit is exceeded
   const cashLimitExceeded = currentCashInRegister >= CASH_LIMIT;
@@ -162,13 +170,10 @@ export default function StoreSales() {
     try {
       const cashAmount = parseFloat(cashCounted) || 0;
       
-      // Determine close label
-      let closeLabel = 'Corte Manual';
+      // Determine close label - now only limit-based cortes
+      let closeLabel = 'Corte de Caja';
       if (selectedCloseType === 'limit') {
-        closeLabel = 'Límite de Caja';
-      } else if (selectedCloseType) {
-        const scheduled = SCHEDULED_CLOSES.find(s => s.id === selectedCloseType);
-        closeLabel = scheduled?.name || 'Corte Manual';
+        closeLabel = 'Corte por Límite de Caja';
       }
       
       const closeData = {
@@ -176,12 +181,21 @@ export default function StoreSales() {
         userName: user?.name || 'Cajero',
         closeType: selectedCloseType || 'manual',
         closeLabel,
-        expectedAmount: currentCashInRegister,
+        expectedAmount: currentCashInRegister, // Stored for admin, not shown to seller
         cashAmount,
-        difference: Math.round((cashAmount - currentCashInRegister) * 100) / 100, // Evita floating point
+        difference: Math.round((cashAmount - currentCashInRegister) * 100) / 100,
         notes: closeNotes || '',
         salesCount: sales.length,
-        totalSales: totalSales || 0
+        totalSales: totalSales || 0,
+        netSales: netSales || 0, // Total minus card commission
+        cardCommission: totalCardCommission || 0, // 4% commission on card sales
+        storeName: storeName || 'Tienda',
+        // Payment breakdown for confirmation display
+        paymentBreakdown: {
+          cash: paymentBreakdown.cash || 0,
+          card: paymentBreakdown.card || 0,
+          transfer: paymentBreakdown.transfer || 0
+        }
       };
       
       const newEntry = await addCashClose(storeId, closeData);
@@ -189,8 +203,15 @@ export default function StoreSales() {
       // Update local state
       setCashCloses(prev => [...prev, newEntry]);
       
+      // Store corte data for confirmation and show confirmation modal
+      setLastCorteData({
+        ...closeData,
+        id: newEntry.id,
+        createdAt: new Date()
+      });
+      
       setShowCashCloseModal(false);
-      // alert('Cierre de caja registrado exitosamente');
+      setShowCorteConfirmation(true);
     } catch (error) {
       console.error('Error saving cash close:', error);
       alert('Error al guardar el cierre de caja');
@@ -209,55 +230,24 @@ export default function StoreSales() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Pending Close Alerts */}
-      {pendingCloses.filter(p => !dismissedAlerts.includes(p.id)).length > 0 && (
-        <div className="space-y-2">
-          {pendingCloses.filter(p => !dismissedAlerts.includes(p.id)).map(pending => (
-            <div key={pending.id} className="bg-yellow-50 border border-yellow-300 rounded-xl p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="text-yellow-600" size={24} />
-                <div>
-                  <p className="font-semibold text-yellow-800">
-                    ¡Corte de caja pendiente!
-                  </p>
-                  <p className="text-sm text-yellow-700">
-                    El corte de las {pending.label} ({pending.name}) no se ha realizado
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" onClick={() => openCashCloseModal(pending.id)}>
-                  Realizar Corte
-                </Button>
-                <button 
-                  onClick={() => dismissAlert(pending.id)}
-                  className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-lg"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Cash Limit Alert */}
       {cashLimitExceeded && !dismissedAlerts.includes('cashLimit') && (
         <div className="bg-red-50 border border-red-300 rounded-xl p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <DollarSign className="text-red-600" size={24} />
+            <AlertTriangle className="text-red-600" size={24} />
             <div>
               <p className="font-semibold text-red-800">
-                ¡Límite de efectivo alcanzado!
+                ¡Se superó el límite de efectivo!
               </p>
               <p className="text-sm text-red-700">
-                Hay {formatCurrency(currentCashInRegister)} en caja (límite: {formatCurrency(CASH_LIMIT)})
+                Realiza un corte de caja ahora
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="danger" onClick={() => openCashCloseModal('limit')}>
-              Realizar Corte
+              Hacer Corte
             </Button>
             <button 
               onClick={() => dismissAlert('cashLimit')}
@@ -283,7 +273,7 @@ export default function StoreSales() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl shadow-md">
+        {/* <div className="bg-white p-5 rounded-xl shadow-md">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-green-100 rounded-xl">
               <DollarSign size={24} className="text-green-600" />
@@ -315,7 +305,9 @@ export default function StoreSales() {
               <p className="text-2xl font-bold text-gray-800">{formatCurrency(averageTicket)}</p>
             </div>
           </div>
-        </div>
+        </div> */}
+        
+        {/* Efectivo en Caja card */}
         <div className={`p-5 rounded-xl shadow-md ${cashLimitExceeded ? 'bg-red-50 border-2 border-red-300' : 'bg-white'}`}>
           <div className="flex items-center gap-3">
             <div className={`p-3 rounded-xl ${cashLimitExceeded ? 'bg-red-100' : 'bg-yellow-100'}`}>
@@ -326,6 +318,7 @@ export default function StoreSales() {
               <p className={`text-2xl font-bold ${cashLimitExceeded ? 'text-red-600' : 'text-gray-800'}`}>
                 {formatCurrency(currentCashInRegister)}
               </p>
+              <p className="text-xs text-gray-400">Solo ventas desde último corte</p>
             </div>
           </div>
         </div>
@@ -381,7 +374,12 @@ export default function StoreSales() {
                             </div>
                           </td>
                           <td className="px-4 py-3">{getPaymentBadge(sale.paymentMethod)}</td>
-                          <td className="px-4 py-3 font-bold text-gray-800">{formatCurrency(sale.total || 0)}</td>
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-gray-800">{formatCurrency(sale.total || 0)}</div>
+                            {sale.paymentMethod === 'card' && (sale.cardCommission || 0) > 0 && (
+                              <div className="text-xs text-red-500">-4% comisión: {formatCurrency(sale.cardCommission)}</div>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             <button
                               onClick={() => handleViewTicket(sale)}
@@ -451,62 +449,43 @@ export default function StoreSales() {
 
         {/* Right Sidebar */}
         <div className="space-y-6">
-          {/* Scheduled Closes */}
+          {/* Cash Close - Only triggered by $2K limit */}
           <div className="bg-white rounded-xl shadow-md p-5">
-            <h3 className="font-bold text-gray-800 mb-4">Cortes Programados</h3>
-            <div className="space-y-3">
-              {SCHEDULED_CLOSES.map(schedule => {
-                const isCompleted = cashCloses.some(c => c.closeType === schedule.id);
-                const isPending = new Date().getHours() >= schedule.hour && !isCompleted;
-                
-                return (
-                  <div 
-                    key={schedule.id}
-                    className={`p-3 rounded-xl flex items-center justify-between ${
-                      isCompleted ? 'bg-green-50' : isPending ? 'bg-yellow-50' : 'bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className={
-                        isCompleted ? 'text-green-600' : isPending ? 'text-yellow-600' : 'text-gray-400'
-                      } />
-                      <div>
-                        <p className="font-medium text-sm">{schedule.name}</p>
-                        <p className="text-xs text-gray-500">{schedule.label}</p>
-                      </div>
-                    </div>
-                    {isCompleted ? (
-                      <Badge variant="success">Completado</Badge>
-                    ) : isPending ? (
-                      <Button size="sm" onClick={() => openCashCloseModal(schedule.id)}>
-                        Realizar
-                      </Button>
+            <h3 className="font-bold text-gray-800 mb-4">Corte de Caja</h3>
+            <div className={`p-4 rounded-xl ${
+              cashLimitExceeded ? 'bg-red-50 border-2 border-red-200' : 'bg-green-50 border border-green-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${cashLimitExceeded ? 'bg-red-100' : 'bg-green-100'}`}>
+                    <DollarSign size={20} className={cashLimitExceeded ? 'text-red-600' : 'text-green-600'} />
+                  </div>
+                  <div>
+                    {cashLimitExceeded ? (
+                      <>
+                        <p className="font-bold text-red-700">¡Límite Excedido!</p>
+                        <p className="text-sm text-red-600">Se superaron ${CASH_LIMIT} en caja</p>
+                      </>
                     ) : (
-                      <Badge variant="gray">Pendiente</Badge>
+                      <>
+                        <p className="font-medium text-green-700">Caja OK</p>
+                        <p className="text-sm text-green-600">Límite: ${CASH_LIMIT}</p>
+                      </>
                     )}
                   </div>
-                );
-              })}
-              
-              {/* Cash Limit Close */}
-              <div className={`p-3 rounded-xl flex items-center justify-between ${
-                cashLimitExceeded ? 'bg-red-50' : 'bg-gray-50'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <DollarSign size={16} className={cashLimitExceeded ? 'text-red-600' : 'text-gray-400'} />
-                  <div>
-                    <p className="font-medium text-sm">Límite de Caja</p>
-                    <p className="text-xs text-gray-500">{formatCurrency(CASH_LIMIT)} máximo</p>
-                  </div>
                 </div>
-                {cashLimitExceeded ? (
-                  <Button size="sm" variant="danger" onClick={() => openCashCloseModal('limit')}>
-                    Realizar
+                {cashLimitExceeded && (
+                  <Button variant="danger" onClick={() => openCashCloseModal('limit')}>
+                    Hacer Corte
                   </Button>
-                ) : (
-                  <Badge variant="gray">{formatCurrency(currentCashInRegister)}</Badge>
                 )}
               </div>
+              {cashLimitExceeded && (
+                <div className="mt-3 p-2 bg-red-100 rounded-lg flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-red-600" />
+                  <p className="text-sm text-red-700">Realiza un corte y reporta cuánto tienes en caja.</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -622,81 +601,146 @@ export default function StoreSales() {
       <Modal
         isOpen={showCashCloseModal}
         onClose={() => setShowCashCloseModal(false)}
-        title={selectedCloseType 
-          ? SCHEDULED_CLOSES.find(s => s.id === selectedCloseType)?.name || 'Cierre de Caja'
-          : 'Cierre de Caja'
-        }
-        size="lg"
+        title="Corte de Caja"
+        size="md"
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-green-50 p-4 rounded-xl text-center">
-              <p className="text-sm text-green-700">Efectivo</p>
-              <p className="text-xl font-bold text-green-800">{formatCurrency(paymentBreakdown.cash || 0)}</p>
-            </div>
-            <div className="bg-blue-50 p-4 rounded-xl text-center">
-              <p className="text-sm text-blue-700">Tarjeta</p>
-              <p className="text-xl font-bold text-blue-800">{formatCurrency(paymentBreakdown.card || 0)}</p>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-xl text-center">
-              <p className="text-sm text-yellow-700">Transferencia</p>
-              <p className="text-xl font-bold text-yellow-800">{formatCurrency(paymentBreakdown.transfer || 0)}</p>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 rounded-xl text-white text-center">
-            <p className="text-sm opacity-80">Efectivo Esperado en Caja</p>
-            <p className="text-3xl font-bold">{formatCurrency(currentCashInRegister)}</p>
-            {closedCashAmount > 0 && (
-              <p className="text-xs opacity-70 mt-1">
-                (Ya retirado: {formatCurrency(closedCashAmount)})
-              </p>
-            )}
+        <div className="space-y-5">
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+            <AlertTriangle size={32} className="mx-auto text-orange-500 mb-2" />
+            <p className="font-bold text-orange-800">Se superó el límite de efectivo</p>
+            <p className="text-sm text-orange-600">Cuenta el dinero en tu caja y repórtalo</p>
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Monto Contado en Caja
+              ¿Cuánto efectivo tienes en caja?
             </label>
             <input
               type="number"
               value={cashCounted}
               onChange={(e) => setCashCounted(e.target.value)}
-              placeholder="$0.00"
-              className="w-full border border-gray-200 rounded-xl py-3 px-4 text-lg focus:ring-2 focus:ring-indigo-500"
+              placeholder="Ej: 2500"
+              className="w-full border border-gray-200 rounded-xl py-4 px-4 text-2xl font-bold text-center focus:ring-2 focus:ring-indigo-500"
+              autoFocus
             />
           </div>
           
-          {cashCounted && (() => {
-            const difference = parseFloat(cashCounted || 0) - currentCashInRegister;
-            const isMatch = Math.abs(difference) < 0.01; // Tolerancia de 1 centavo
-            return (
-              <div className={`p-4 rounded-xl text-center ${
-                isMatch ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                <p className="text-sm">Diferencia</p>
-                <p className="text-2xl font-bold">
-                  {isMatch ? '$0.00' : formatCurrency(difference)}
-                </p>
-              </div>
-            );
-          })()}
-          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Notas Adicionales</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Notas (opcional)</label>
             <textarea
               value={closeNotes}
               onChange={(e) => setCloseNotes(e.target.value)}
               className="w-full border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500"
               rows="2"
-              placeholder="Observaciones del turno..."
+              placeholder="Observaciones..."
             />
           </div>
           
-          <Button className="w-full" size="lg" onClick={handleCashClose}>
-            Confirmar Cierre de Caja
+          <Button 
+            className="w-full" 
+            size="lg" 
+            onClick={handleCashClose}
+            disabled={!cashCounted || parseFloat(cashCounted) <= 0}
+          >
+            Enviar Corte
           </Button>
         </div>
+      </Modal>
+
+      {/* Corte Confirmation Modal - for seller to take photo */}
+      <Modal
+        isOpen={showCorteConfirmation}
+        onClose={() => setShowCorteConfirmation(false)}
+        title="✅ Corte Enviado"
+        size="md"
+      >
+        {lastCorteData && (
+          <div className="space-y-4">
+            <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 text-center">
+              <CheckCircle size={48} className="mx-auto text-green-500 mb-3" />
+              <p className="text-xl font-bold text-green-800">¡Corte Registrado!</p>
+              <p className="text-sm text-green-600">Toma foto de esta pantalla y envíala al grupo</p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Tienda:</span>
+                <span className="font-bold text-gray-800">{lastCorteData.storeName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Vendedor:</span>
+                <span className="font-bold text-gray-800">{lastCorteData.userName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Fecha:</span>
+                <span className="font-bold text-gray-800">
+                  {lastCorteData.createdAt.toLocaleDateString('es-MX')}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Hora:</span>
+                <span className="font-bold text-gray-800">
+                  {lastCorteData.createdAt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <hr className="border-gray-200" />
+              
+              {/* Sales breakdown by payment method */}
+              <div className="space-y-2">
+                <p className="text-gray-600 text-sm font-medium">Resumen de Ventas:</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">💵 Efectivo:</span>
+                  <span className="font-medium text-green-600">{formatCurrency(lastCorteData.paymentBreakdown?.cash || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">💳 Tarjeta:</span>
+                  <span className="font-medium text-blue-600">{formatCurrency(lastCorteData.paymentBreakdown?.card || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">📱 Transferencia:</span>
+                  <span className="font-medium text-purple-600">{formatCurrency(lastCorteData.paymentBreakdown?.transfer || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
+                  <span className="text-gray-700">Total Bruto:</span>
+                  <span className="font-medium text-gray-700">{formatCurrency(lastCorteData.totalSales || 0)}</span>
+                </div>
+                {(lastCorteData.cardCommission || 0) > 0 && (
+                  <div className="flex justify-between text-sm text-red-600">
+                    <span>🏦 Comisión Tarjeta (4%):</span>
+                    <span className="font-medium">-{formatCurrency(lastCorteData.cardCommission)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-lg pt-1 border-t-2 border-gray-300">
+                  <span className="text-gray-800 font-bold">Total Neto:</span>
+                  <span className="font-bold text-green-700">{formatCurrency(lastCorteData.netSales || lastCorteData.totalSales || 0)}</span>
+                </div>
+              </div>
+              
+              <hr className="border-gray-200" />
+              <div className="flex justify-between text-lg">
+                <span className="text-gray-700 font-medium">Efectivo Reportado:</span>
+                <span className="font-bold text-green-600">{formatCurrency(lastCorteData.cashAmount)}</span>
+              </div>
+              {lastCorteData.notes && (
+                <>
+                  <hr className="border-gray-200" />
+                  <div>
+                    <span className="text-gray-600 text-sm">Notas:</span>
+                    <p className="text-gray-800">{lastCorteData.notes}</p>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            <Button 
+              className="w-full" 
+              size="lg" 
+              onClick={() => setShowCorteConfirmation(false)}
+            >
+              Cerrar
+            </Button>
+          </div>
+        )}
       </Modal>
 
       {/* PIN Modal for Returns */}

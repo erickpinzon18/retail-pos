@@ -20,12 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStore } from '../../context/StoreContext';
 import { getTodayCashCloses, getSalesByStore } from '../../api/firestoreService';
 
-// Same rules as StoreSales
-const SCHEDULED_CLOSES = [
-  { id: 'morning', name: 'Corte Mañana', hour: 12, label: '12:00 PM' },
-  { id: 'afternoon', name: 'Corte Tarde', hour: 16, label: '4:00 PM' },
-  { id: 'evening', name: 'Corte Noche', hour: 20, label: '8:00 PM' },
-];
+// Cash limit for triggering corte alert
 const CASH_LIMIT = 2000;
 
 const generalItems = [
@@ -90,42 +85,24 @@ export default function StoreSidebar() {
     return () => clearInterval(interval);
   }, [storeId]);
 
-  // Generate alerts based on rules
+  // Generate alerts based on cash limit only
   const alerts = useMemo(() => {
     const result = [];
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const completedTypes = cashCloses.map(c => c.closeType);
     
-    // Check scheduled closes (30 min grace period)
-    SCHEDULED_CLOSES.forEach(schedule => {
-      const gracePeriodEnd = schedule.hour * 60 + 30;
-      if (currentMinutes >= gracePeriodEnd && !completedTypes.includes(schedule.id)) {
-        result.push({
-          id: schedule.id,
-          type: 'warning',
-          title: 'Corte pendiente',
-          message: `${schedule.name} (${schedule.label})`,
-          icon: Clock,
-          link: '/store/sales'
-        });
-      }
-    });
-    
-    // Check cash limit
+    // Check cash limit - alert when $2K+ in register
     if (currentCash >= CASH_LIMIT) {
       result.push({
         id: 'cashLimit',
         type: 'danger',
-        title: 'Límite de efectivo',
-        message: `$${currentCash.toFixed(0)} en caja`,
+        title: 'Hacer corte de caja',
+        message: `$${currentCash.toFixed(0)} en caja (límite $${CASH_LIMIT})`,
         icon: DollarSign,
         link: '/store/sales'
       });
     }
     
     return result.filter(a => !dismissedAlerts.includes(a.id));
-  }, [cashCloses, currentCash, dismissedAlerts]);
+  }, [currentCash, dismissedAlerts]);
 
   const handleLogout = async () => {
     await logout();

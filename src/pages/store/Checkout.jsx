@@ -340,6 +340,8 @@ export default function Checkout() {
         vipDiscount,
         total,
         paymentMethod,
+        // Hidden 4% card commission - not shown to customer/seller
+        cardCommission: paymentMethod === 'card' ? Math.round(total * 0.04 * 100) / 100 : 0,
       };
       
       await createSale(saleData);
