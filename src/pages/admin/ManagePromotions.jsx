@@ -185,16 +185,22 @@ export default function ManagePromotions() {
     try {
       setSaving(true);
       
+      // Construct dates in local timezone to avoid UTC shifts
+      const [sYear, sMonth, sDay] = formData.startAt.split('-').map(Number);
+      const startDate = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+
+      const [fYear, fMonth, fDay] = formData.finishAt.split('-').map(Number);
+      const finishDate = new Date(fYear, fMonth - 1, fDay, 23, 59, 59, 999);
+      
       const promoData = {
         title: formData.title.trim(),
         category: formData.category.trim(),
         value: Number(formData.value),
         storeIds: formData.storeIds.length === 0 ? ['global'] : formData.storeIds,
-        storeIds: formData.storeIds.length === 0 ? ['global'] : formData.storeIds,
         status: formData.status,
         type: "percentage",
-        startAt: new Date(formData.startAt),
-        finishAt: new Date(formData.finishAt)
+        startAt: startDate,
+        finishAt: finishDate
       };
       
       if (isEditing && selectedPromo) {

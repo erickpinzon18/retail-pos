@@ -352,7 +352,15 @@ export const getActivePromotions = async (storeId = null) => {
       // Check if promotion hasn't expired
       if (promo.finishAt) {
         const finishDate = promo.finishAt.toDate ? promo.finishAt.toDate() : new Date(promo.finishAt);
+        // If finishAt has no time (defaults to midnight), maybe we should consider end of day?
+        // But strictly satisfying "now > finishDate" works for exact timestamps.
         if (now > finishDate) return false;
+      }
+
+      // Check if promotion has started
+      if (promo.startAt) {
+        const startDate = promo.startAt.toDate ? promo.startAt.toDate() : new Date(promo.startAt);
+        if (now < startDate) return false;
       }
       
       // Check if promotion applies to this store
