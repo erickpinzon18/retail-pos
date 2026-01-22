@@ -347,7 +347,7 @@ export default function ManagePromotions() {
             className="w-full border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500"
           />
         </div>
-        <div className="flex space-x-2 p-1 bg-gray-200 rounded-xl w-fit">
+        <div className="flex space-x-2 p-1 bg-gray-200 rounded-xl w-full md:w-auto overflow-x-auto whitespace-nowrap scrollbar-hide">
           {statusFilters.map((filter) => {
             const count = filter === 'Todas' ? counts.total :
                           filter === 'Activas' ? counts.active : 
@@ -356,7 +356,7 @@ export default function ManagePromotions() {
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg transition flex items-center gap-2 ${
+                className={`px-4 py-2 text-sm font-semibold rounded-lg transition flex items-center gap-2 flex-shrink-0 ${
                   activeFilter === filter
                     ? 'bg-white text-indigo-700 shadow-sm'
                     : 'text-gray-600 hover:bg-gray-100'

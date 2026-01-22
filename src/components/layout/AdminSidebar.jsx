@@ -9,7 +9,8 @@ import {
   Tag,
   Crown,
   Shield,
-  Key
+  Key,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -26,7 +27,7 @@ const managementItems = [
   { to: '/admin/tokens', icon: Key, label: 'Tokens' },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ onClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -36,7 +37,7 @@ export default function AdminSidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white flex flex-col shadow-xl rounded-r-2xl">
+    <aside className="w-full h-full bg-white flex flex-col">
       {/* Profile Section */}
       <div className="p-4 border-b border-gray-100">
         <div className="flex items-center space-x-3 mb-3">
@@ -52,10 +53,14 @@ export default function AdminSidebar() {
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-2.5 rounded-xl">
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-2.5 rounded-xl hidden md:block">
           <p className="text-xs text-gray-500">Panel de Administración</p>
           <p className="text-sm font-semibold text-gray-700">Control Total</p>
         </div>
+        {/* Mobile Close Button */}
+        <button className="absolute top-4 right-4 text-gray-500 hover:bg-gray-100 p-1 rounded-lg transition-colors" onClick={onClose}>
+          <X size={20} />
+        </button>
       </div>
 
       {/* Navigation Menu */}

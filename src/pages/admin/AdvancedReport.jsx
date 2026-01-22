@@ -569,12 +569,12 @@ export default function AdvancedReport() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 p-1 bg-gray-200 rounded-xl w-fit">
+      <div className="flex gap-2 p-1 bg-gray-200 rounded-xl w-full overflow-x-auto whitespace-nowrap scrollbar-hide">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition flex-shrink-0 ${
               activeTab === tab.id 
                 ? 'bg-white text-indigo-700 shadow-sm' 
                 : 'text-gray-600 hover:bg-gray-100'
@@ -593,7 +593,7 @@ export default function AdvancedReport() {
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-5">
             <h3 className="font-bold text-gray-800 mb-4">Ventas por Día</h3>
             {chartData.labels.length > 0 ? (
-              <SalesChart data={chartData.data} labels={chartData.labels} height="0px" />
+              <SalesChart data={chartData.data} labels={chartData.labels} height="350px" />
             ) : (
               <p className="text-center text-gray-400 py-12">Sin datos en el período</p>
             )}

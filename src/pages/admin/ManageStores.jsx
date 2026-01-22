@@ -533,12 +533,12 @@ function StoreDetailView({ store, onBack, onUpdate }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 p-1 bg-gray-200 rounded-xl w-fit">
+      <div className="flex gap-2 p-1 bg-gray-200 rounded-xl w-full overflow-x-auto whitespace-nowrap scrollbar-hide">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition flex-shrink-0 ${
               activeTab === tab.id 
                 ? 'bg-white text-indigo-700 shadow-sm' 
                 : 'text-gray-600 hover:bg-gray-100'
@@ -1030,39 +1030,41 @@ function StoreDetailView({ store, onBack, onUpdate }) {
           {stats.topSellers.length === 0 ? (
             <div className="p-8 text-center text-gray-400">Sin datos de vendedores</div>
           ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                <tr>
-                  <th className="px-5 py-3 text-left">#</th>
-                  <th className="px-5 py-3 text-left">Vendedor</th>
-                  <th className="px-5 py-3 text-right">Ventas</th>
-                  <th className="px-5 py-3 text-right">Transacciones</th>
-                  <th className="px-5 py-3 text-right">Ticket Prom.</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {stats.topSellers.map((seller, idx) => (
-                  <tr key={seller.name} className="hover:bg-gray-50">
-                    <td className="px-5 py-4">
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                        idx === 1 ? 'bg-gray-100 text-gray-600' :
-                        idx === 2 ? 'bg-amber-100 text-amber-700' :
-                        'bg-gray-50 text-gray-500'
-                      }`}>
-                        {idx + 1}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 font-medium text-gray-800">{seller.name}</td>
-                    <td className="px-5 py-4 text-right font-bold text-green-600">{formatCurrency(seller.sales)}</td>
-                    <td className="px-5 py-4 text-right text-gray-600">{seller.transactions}</td>
-                    <td className="px-5 py-4 text-right text-gray-600">
-                      {formatCurrency(seller.transactions > 0 ? seller.sales / seller.transactions : 0)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="px-5 py-3 text-left">#</th>
+                    <th className="px-5 py-3 text-left">Vendedor</th>
+                    <th className="px-5 py-3 text-right">Ventas</th>
+                    <th className="px-5 py-3 text-right">Transacciones</th>
+                    <th className="px-5 py-3 text-right">Ticket Prom.</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {stats.topSellers.map((seller, idx) => (
+                    <tr key={seller.name} className="hover:bg-gray-50">
+                      <td className="px-5 py-4">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                          idx === 1 ? 'bg-gray-100 text-gray-600' :
+                          idx === 2 ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-50 text-gray-500'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-medium text-gray-800">{seller.name}</td>
+                      <td className="px-5 py-4 text-right font-bold text-green-600">{formatCurrency(seller.sales)}</td>
+                      <td className="px-5 py-4 text-right text-gray-600">{seller.transactions}</td>
+                      <td className="px-5 py-4 text-right text-gray-600">
+                        {formatCurrency(seller.transactions > 0 ? seller.sales / seller.transactions : 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

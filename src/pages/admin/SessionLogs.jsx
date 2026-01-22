@@ -57,14 +57,14 @@ export default function SessionLogs() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Registros de Sesión</h1>
           <p className="text-gray-500">Últimos 50 inicios de sesión en el sistema</p>
         </div>
         <button 
           onClick={fetchLogs}
-          className="px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 text-sm font-medium transition-colors w-full md:w-auto"
         >
           Actualizar
         </button>

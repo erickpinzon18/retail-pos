@@ -120,7 +120,7 @@ export default function GenerateToken() {
                   className="bg-gray-50 border-2 border-indigo-100 rounded-2xl py-6 px-4 cursor-pointer hover:bg-indigo-50 transition-colors group relative"
                   onClick={copyToClipboard}
                 >
-                  <span className="text-5xl font-mono font-bold tracking-[0.2em] text-indigo-600">
+                  <span className="text-3xl md:text-5xl font-mono font-bold tracking-[0.2em] text-indigo-600 break-all">
                     {token.code.slice(0, 3)} {token.code.slice(3)}
                   </span>
                   <div className="absolute top-2 right-2 text-gray-300 group-hover:text-indigo-400">
@@ -158,9 +158,9 @@ export default function GenerateToken() {
 
       {/* Token History */}
       <div className="mt-12 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-4xl mx-auto">
-        <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+        <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row justify-between md:items-center gap-4">
           <h2 className="text-lg font-bold text-gray-800">Historial de Tokens Recientes</h2>
-          <Button size="sm" variant="gray" onClick={fetchHistory}>Actualizar</Button>
+          <Button size="sm" variant="gray" onClick={fetchHistory} className="w-full md:w-auto">Actualizar</Button>
         </div>
         
         <div className="overflow-x-auto">

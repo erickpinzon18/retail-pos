@@ -376,50 +376,62 @@ export default function ManageUsers() {
               </div>
               <div className="divide-y divide-gray-100">
                 {storeUsers.map((user) => (
-                  <div key={user.id} className="p-4 flex items-center gap-4 hover:bg-gray-50">
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
-                      {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  <div key={user.id} className="p-4 flex flex-col md:flex-row md:items-center gap-4 hover:bg-gray-50">
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                        {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                      </div>
+                      <div className="flex-1 md:hidden">
+                         <div className="flex gap-2 justify-end">
+                            {getRoleBadge(user.role)}
+                         </div>
+                      </div>
                     </div>
+                    
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-800">{user.name}</p>
-                      <p className="text-sm text-gray-500">{user.email || 'Sin email'}</p>
+                      <div className="flex flex-col md:block">
+                        <p className="font-bold text-gray-800">{user.name}</p>
+                        <p className="text-sm text-gray-500">{user.email || 'Sin email'}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {getRoleBadge(user.role)}
-                      {getTypeBadge(user.type)}
-                      {user.status === false && <Badge variant="danger">Deshabilitado</Badge>}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={() => handleViewStats(user)}
-                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                      >
-                        <Eye size={18} />
-                      </button>
-                      <button 
-                        onClick={() => handleEditUser(user)}
-                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                      >
-                        <Pencil size={18} />
-                      </button>
-                      {/* <button 
-                        onClick={() => handleDeleteClick(user)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                      >
-                        <Trash2 size={18} />
-                      </button> */}
-                      <button 
-                        onClick={() => handleToggleStatus(user)}
-                        className={`p-2 rounded-lg transition ${
-                          user.status === false 
-                            ? 'text-red-400 hover:text-green-600 hover:bg-green-50' 
-                            : 'text-green-600 hover:text-red-600 hover:bg-red-50'
-                        }`}
-                        title={user.status === false ? "Habilitar Usuario" : "Deshabilitar Usuario"}
-                        disabled={saving}
-                      >
-                        {user.status === false ? <UserX size={18} /> : <UserCheck size={18} />}
-                      </button>
+
+                    <div className="flex items-center justify-between w-full md:w-auto mt-2 md:mt-0 gap-4">
+                      <div className="hidden md:flex items-center gap-2">
+                        {getRoleBadge(user.role)}
+                        {getTypeBadge(user.type)}
+                        {user.status === false && <Badge variant="danger">Deshabilitado</Badge>}
+                      </div>
+                      <div className="md:hidden flex flex-wrap gap-2">
+                         {getTypeBadge(user.type)}
+                         {user.status === false && <Badge variant="danger">Deshabilitado</Badge>}
+                      </div>
+
+                      <div className="flex items-center gap-1 ml-auto">
+                        <button 
+                          onClick={() => handleViewStats(user)}
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleEditUser(user)}
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                        >
+                          <Pencil size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleToggleStatus(user)}
+                          className={`p-2 rounded-lg transition ${
+                            user.status === false 
+                              ? 'text-red-400 hover:text-green-600 hover:bg-green-50' 
+                              : 'text-green-600 hover:text-red-600 hover:bg-red-50'
+                          }`}
+                          title={user.status === false ? "Habilitar Usuario" : "Deshabilitar Usuario"}
+                          disabled={saving}
+                        >
+                          {user.status === false ? <UserX size={18} /> : <UserCheck size={18} />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

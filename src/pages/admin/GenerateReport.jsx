@@ -395,22 +395,22 @@ export default function GenerateReport() {
         {/* Executive Summary */}
         <div className="my-6">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Resumen Ejecutivo</h2>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4 rounded-xl border border-green-200">
               <p className="text-xs text-green-700 font-medium">Ventas Totales</p>
-              <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.totalSales)}</p>
+              <p className="text-xl md:text-2xl font-bold text-green-600">{formatCurrency(stats.totalSales)}</p>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 rounded-xl border border-blue-200">
               <p className="text-xs text-blue-700 font-medium">Ganancia Est. (35%)</p>
-              <p className="text-2xl font-bold text-blue-600">{formatCurrency(stats.profit)}</p>
+              <p className="text-xl md:text-2xl font-bold text-blue-600">{formatCurrency(stats.profit)}</p>
             </div>
             <div className="bg-gradient-to-br from-purple-50 to-pink-100 p-4 rounded-xl border border-purple-200">
               <p className="text-xs text-purple-700 font-medium">Transacciones</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.transactions}</p>
+              <p className="text-xl md:text-2xl font-bold text-purple-600">{stats.transactions}</p>
             </div>
             <div className="bg-gradient-to-br from-orange-50 to-amber-100 p-4 rounded-xl border border-orange-200">
               <p className="text-xs text-orange-700 font-medium">Ticket Promedio</p>
-              <p className="text-2xl font-bold text-orange-600">{formatCurrency(stats.avgTicket)}</p>
+              <p className="text-xl md:text-2xl font-bold text-orange-600">{formatCurrency(stats.avgTicket)}</p>
             </div>
           </div>
         </div>
@@ -418,7 +418,7 @@ export default function GenerateReport() {
         {/* Payment Methods */}
         <div className="my-6">
           <h3 className="text-sm font-bold text-gray-700 mb-3">Métodos de Pago</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-green-50 p-4 rounded-xl text-center">
               <p className="text-sm text-green-700 mb-1">💵 Efectivo</p>
               <p className="text-xl font-bold text-green-600">{formatCurrency(stats.methods.cash)}</p>
@@ -437,7 +437,7 @@ export default function GenerateReport() {
         {/* Store Breakdown */}
         <div className="my-6">
           <h3 className="text-sm font-bold text-gray-700 mb-3">Rendimiento por Tienda</h3>
-          <div className="overflow-hidden rounded-xl border border-gray-200">
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full text-sm">
               <thead className="bg-gray-100 text-gray-600">
                 <tr>
@@ -464,7 +464,7 @@ export default function GenerateReport() {
         {/* Seller Ranking */}
         <div className="my-6">
           <h3 className="text-sm font-bold text-gray-700 mb-3">🏆 Top 10 Vendedores</h3>
-          <div className="overflow-hidden rounded-xl border border-gray-200">
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full text-sm">
               <thead className="bg-gray-100 text-gray-600">
                 <tr>
@@ -493,7 +493,7 @@ export default function GenerateReport() {
         {/* Recent Sales Preview */}
         <div className="my-6">
           <h3 className="text-sm font-bold text-gray-700 mb-3">📋 Últimas Ventas (preview)</h3>
-          <div className="overflow-hidden rounded-xl border border-gray-200">
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full text-xs">
               <thead className="bg-gray-100 text-gray-600">
                 <tr>
