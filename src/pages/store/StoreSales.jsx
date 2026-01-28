@@ -415,8 +415,8 @@ export default function StoreSales() {
                       <th className="px-4 py-3">Cajero</th>
                       <th className="px-4 py-3">Artículos</th>
                       <th className="px-4 py-3">Pago</th>
-                      <th className="px-4 py-3">Total</th>
-                      <th className="px-4 py-3">Acción</th>
+                      {/* <th className="px-4 py-3">Total</th> */}
+                      {/* <th className="px-4 py-3">Acción</th> */}
                     </tr>
                   </thead>
                   <tbody>
@@ -453,7 +453,7 @@ export default function StoreSales() {
                             </div>
                           </td>
                           <td className={`px-4 py-3 ${sale.status === 'returned' ? 'opacity-50' : ''}`}>{getPaymentBadge(sale.paymentMethod)}</td>
-                          <td className={`px-4 py-3 ${sale.status === 'returned' ? 'opacity-50 line-through' : ''}`}>
+                          {/* <td className={`px-4 py-3 ${sale.status === 'returned' ? 'opacity-50 line-through' : ''}`}>
                             <div className="font-bold text-gray-800">{formatCurrency(sale.total || 0)}</div>
                             {sale.paymentMethod === 'card' && (sale.cardCommission || 0) > 0 && (
                               <div className="text-xs text-red-500">-4% comisión: {formatCurrency(sale.cardCommission)}</div>
@@ -467,7 +467,7 @@ export default function StoreSales() {
                               <Eye size={16} />
                               Ver
                             </button>
-                          </td>
+                          </td> */}
                         </tr>
                       );
                     })}
@@ -589,7 +589,7 @@ export default function StoreSales() {
           </div>
 
           {/* Payment Methods */}
-          <div className="bg-white rounded-xl shadow-md p-5">
+          {/* <div className="bg-white rounded-xl shadow-md p-5">
             <h3 className="font-bold text-gray-800 mb-4">Por Método de Pago</h3>
             <div className="space-y-4">
               {paymentMethods.map((pm) => (
@@ -610,7 +610,7 @@ export default function StoreSales() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 
