@@ -30,9 +30,10 @@ import Badge from '../../components/ui/Badge';
 import SalesChart from '../../components/shared/SalesChart';
 import CategoryChart from '../../components/shared/CategoryChart';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getAll, getById, getSalesByDateRange, update, getCashClosesForDate, getClientMonthlyTotal, getApartados } from '../../api/firestoreService';
+import { getAll, getById, getSalesByDateRange, update, getCashClosesForDate, getClientMonthlyTotal, getApartados, getSalesByStore, getTodayCashCloses } from '../../api/firestoreService';
 
 const VIP_THRESHOLD = 2000;
+const CASH_LIMIT = 2000;
 
 export default function ManageStores() {
   const [stores, setStores] = useState([]);
@@ -62,12 +63,56 @@ export default function ManageStores() {
           // Count unique users
           const uniqueUsers = new Set(sales.map(s => s.userId)).size;
           
+          // Get today's sales and cash closes to calculate current cash in register
+          const todaySalesData = await getSalesByStore(store.id);
+          const todayCashCloses = await getTodayCashCloses(store.id);
+          
+          // Filter to today's sales
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const todaySales = todaySalesData.filter(sale => {
+            const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+            return saleDate >= today;
+          });
+          
+          // Find last corte
+          const lastCorte = todayCashCloses.length > 0 
+            ? todayCashCloses.reduce((latest, close) => {
+                const closeDate = close.createdAt?.toDate ? close.createdAt.toDate() : new Date(close.createdAt);
+                const latestDate = latest?.createdAt?.toDate ? latest.createdAt.toDate() : new Date(latest?.createdAt || 0);
+                return closeDate > latestDate ? close : latest;
+              }, todayCashCloses[0])
+            : null;
+          
+          const lastCorteTime = lastCorte 
+            ? (lastCorte.createdAt?.toDate ? lastCorte.createdAt.toDate() : new Date(lastCorte.createdAt))
+            : null;
+          
+          // Calculate cash in register since last corte
+          const currentCashInRegister = todaySales.reduce((sum, sale) => {
+            const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+            if (!lastCorteTime || saleDate > lastCorteTime) {
+              if (sale.status === 'returned') {
+                if (sale.paymentMethod === 'cash') {
+                  return sum - (sale.total || 0);
+                }
+              } else {
+                if (sale.paymentMethod === 'cash') {
+                  return sum + (sale.total || 0);
+                }
+              }
+            }
+            return sum;
+          }, 0);
+          
           return {
             ...store,
             monthSales: totalSales,
             transactions,
             activeUsers: uniqueUsers || 0,
-            avgTicket: transactions > 0 ? totalSales / transactions : 0
+            avgTicket: transactions > 0 ? totalSales / transactions : 0,
+            currentCashInRegister,
+            cashLimitExceeded: currentCashInRegister >= CASH_LIMIT
           };
         })
       );
@@ -150,9 +195,16 @@ export default function ManageStores() {
                   <p className="text-xs text-purple-600 font-medium">Ticket Promedio</p>
                   <p className="text-lg font-bold text-purple-700">{formatCurrency(store.avgTicket)}</p>
                 </div>
-                <div className="bg-orange-50 p-3 rounded-xl">
-                  <p className="text-xs text-orange-600 font-medium">Usuarios Activos</p>
-                  <p className="text-lg font-bold text-orange-700">{store.activeUsers}</p>
+                <div className={`p-3 rounded-xl ${store.cashLimitExceeded ? 'bg-red-50 ring-2 ring-red-400' : 'bg-orange-50'}`}>
+                  <p className={`text-xs font-medium ${store.cashLimitExceeded ? 'text-red-600' : 'text-orange-600'}`}>
+                    {store.cashLimitExceeded ? '⚠️ En Caja' : '💵 En Caja'}
+                  </p>
+                  <p className={`text-lg font-bold ${store.cashLimitExceeded ? 'text-red-700' : 'text-orange-700'}`}>
+                    {formatCurrency(store.currentCashInRegister || 0)}
+                  </p>
+                  {store.cashLimitExceeded && (
+                    <p className="text-[10px] text-red-500 font-semibold mt-0.5">¡Necesita corte!</p>
+                  )}
                 </div>
               </div>
 
